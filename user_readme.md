@@ -4,9 +4,21 @@
 
 **日常使用不用运行 `npm run dev`。** 项目根目录没有 `package.json`，直接在根目录运行这条命令也不会启动网站。第一次安装时构建一次网页，以后在项目根目录运行 `uv run --locked python -m backend`，保持终端开着，再打开浏览器。前端开发命令是 `npm --prefix frontend run dev`，单独运行它不能连接翻译后端。
 
+## 别人复现前，需要准备什么
+
+| 需要的东西 | 从哪里取得、用途 |
+|---|---|
+| 项目源码 | 从 [GitHub 仓库](https://github.com/7x-2026/Youth_translate)下载 ZIP 并解压；已安装 Git 的人也可以运行 `git clone https://github.com/7x-2026/Youth_translate.git`。进入解压或克隆后的项目根目录，确认能看到 `pyproject.toml`、`frontend` 和 `backend`。 |
+| 本机软件 | Node.js LTS（含 npm）、uv、Chrome 或 Edge；uv 会在安装项目依赖时取得 Python 3.12。还需要可用的麦克风和互联网连接。macOS、Windows 的具体安装步骤见下文。 |
+| 各自的云端权限 | 每位使用者需在**豆包语音新版控制台**取得自己的 API Key，并在该 Key 所属项目开通“同声传译2.0”（资源 `volc.service_type.10053`）。这是云端翻译，可能产生费用；火山方舟 `ark-` Key 不适用。 |
+| 本机配置 | 仓库只提供不含密钥的 `.env.example`。每台电脑自行复制为 `.env`，填写 `VOLC_API_KEY`，并将 `VOLC_SUBTITLE_RESPONSE_MODE` 从 `unverified` 改为 `delta`（本项目当前接口已实测为增量字幕）。**不要把自己的 `.env` 或 Key 发给别人或提交到 GitHub。** |
+| 本机生成物 | `.venv`、`frontend/node_modules`、`frontend/dist` 不在仓库中。下文的安装和构建命令会在使用者电脑上重新生成，无须从原作者电脑复制。 |
+
+只想检查代码能否构建、自动测试能否通过时，**不需要 API Key**；但要看到真实翻译，必须具备自己的 Key、同一项目的服务权限、麦克风和网络。仓库里的 `tests/fixtures/ast_real_redacted.json` 是文字已脱敏的事件样本，**不是音频文件**，不能拿它直接试讲。
+
 ## macOS：第一次安装
 
-1. 把整个项目文件夹放到电脑上；文件夹里应能看到 `pyproject.toml`、`frontend`、`backend`、`.env.example`。如果是从另一台电脑复制，`.env` 可能没有一同复制，需要在本机重新配置。
+1. 按上表从 GitHub 下载项目，或从另一台电脑复制项目文件夹；根目录应有 `pyproject.toml`、`frontend`、`backend`、`.env.example`。新电脑需要在本机创建自己的 `.env`。
 2. 从 [Node.js 官网](https://nodejs.org/en/download)安装 **LTS 版**（建议 24 LTS，安装包同时包含 npm）。从 [uv 官方安装说明](https://docs.astral.sh/uv/getting-started/installation/)安装 uv：在“终端”运行下列命令，然后关闭并重新打开终端。
 
    ```sh
@@ -35,7 +47,7 @@
 
 Windows 路径已按 PowerShell 编写；项目尚未在 Windows 实机验收。
 
-1. 把整个项目文件夹放到电脑上，确认根目录有 `pyproject.toml`、`frontend`、`backend`、`.env.example`。
+1. 按上表从 GitHub 下载项目，或从另一台电脑复制项目文件夹，确认根目录有 `pyproject.toml`、`frontend`、`backend`、`.env.example`。新电脑需要在本机创建自己的 `.env`。
 2. 从 [Node.js 官网](https://nodejs.org/en/download)安装 **Windows LTS 安装包**（建议 24 LTS，包含 npm）。按照 [uv 官方说明](https://docs.astral.sh/uv/getting-started/installation/)安装 uv：打开 PowerShell，运行 `winget install --id=astral-sh.uv -e`。若电脑没有 `winget`，可使用官方提供的 PowerShell 安装命令：
 
    ```powershell
@@ -63,13 +75,21 @@ Windows 路径已按 PowerShell 编写；项目尚未在 Windows 实机验收。
 
 ## 第二次及以后
 
-安装和构建完成后，每次只需在**项目根目录**（能看到 `pyproject.toml` 的 `translate` 文件夹）打开终端或 PowerShell，运行。不要先 `cd backend`；那样 Python 找不到顶层 `backend` 包。
+安装和构建完成后，每次只需在**项目根目录**（能看到 `pyproject.toml` 的文件夹，名称可能是 `Youth_translate` 或 `translate`）打开终端或 PowerShell，运行。不要先 `cd backend`；那样 Python 找不到顶层 `backend` 包。
 
 ```text
 uv run --locked python -m backend
 ```
 
 然后打开 **http://localhost:8765**。如果网页已经能打开，就说明服务可能已在运行，**不必再启动第二个**。更换 `.env` 后重启服务；代码更新后重新执行对应系统的 `uv sync --locked --python 3.12`、`npm --prefix frontend ci`、`npm --prefix frontend run build`。字幕历史只在当前网页内存里；需要保存时，结束前点击“导出 TXT”，刷新网页会清空当前记录。
+
+## 如何确认复现成功
+
+1. **不连接云端的检查**：在项目根目录运行 `uv run --locked pytest -q`、`npm --prefix frontend test`、`npm --prefix frontend run build`。这些检查不需要 Key；它们不能代替真实麦克风联调。
+2. **页面检查**：启动后访问 `http://localhost:8765/api/health`，应看到 `"ready":true`；再打开 `http://localhost:8765`，确认页面可显示。`ready` 只表示本机配置齐全，不代表云端已接受该 Key。若为 `false`，先检查 `.env`、Key 类型和字幕模式。
+3. **真实翻译检查**：在网页点击“开始课程”，允许麦克风，朗读一句不含隐私的中文或英文测试句。页面应出现输入电平、原文和译文；结束后再检查最后一句是否定稿。只有这一步通过，才能说明此电脑的麦克风、网络、Key 和云端资源已一起接通。
+
+若要复现协议探测，而非只试用网页，需**自己准备**不超过 60 秒的 16kHz、单声道、16-bit WAV 测试音频；仓库没有附带原始录音。把文件放在项目根目录并命名为 `test.wav` 后运行 `uv run --locked python -m scripts.probe test.wav --container pcm`。这会把测试音频发送至火山引擎，可能产生费用。不同录音的字幕段数和延迟不会与 [验证记录](tests/ACCEPTANCE.md) 中的历史样本相同。
 
 ## 常见问题
 
