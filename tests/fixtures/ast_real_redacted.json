@@ -1,0 +1,1618 @@
+{
+  "container": "pcm",
+  "packetMs": 80,
+  "mode": "auto",
+  "events": [
+    {
+      "event": 650,
+      "elapsedMs": 10548,
+      "sequence": 1,
+      "startMs": 632,
+      "endMs": 8632,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 10563,
+      "sequence": 1,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 10590,
+      "sequence": 1,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 10601,
+      "sequence": 1,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 10633,
+      "sequence": 1,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 10642,
+      "sequence": 1,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 10646,
+      "sequence": 1,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 10666,
+      "sequence": 1,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 10691,
+      "sequence": 1,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 10712,
+      "sequence": 1,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 10716,
+      "sequence": 1,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 652,
+      "elapsedMs": 10733,
+      "sequence": 1,
+      "startMs": 632,
+      "endMs": 8632,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 653,
+      "elapsedMs": 10750,
+      "sequence": 1,
+      "startMs": 632,
+      "endMs": 8632,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 10756,
+      "sequence": 1,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 10758,
+      "sequence": 1,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 10860,
+      "sequence": 1,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 10870,
+      "sequence": 1,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 10870,
+      "sequence": 1,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 10870,
+      "sequence": 1,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 10870,
+      "sequence": 1,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 10870,
+      "sequence": 1,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 10870,
+      "sequence": 1,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 10870,
+      "sequence": 1,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 10877,
+      "sequence": 1,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 10896,
+      "sequence": 1,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 10909,
+      "sequence": 1,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 10918,
+      "sequence": 1,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 10934,
+      "sequence": 1,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 10951,
+      "sequence": 1,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 10964,
+      "sequence": 1,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 10990,
+      "sequence": 1,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 11014,
+      "sequence": 1,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 655,
+      "elapsedMs": 11016,
+      "sequence": 1,
+      "startMs": 632,
+      "endMs": 8632,
+      "text": "                ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 154,
+      "elapsedMs": 11017,
+      "sequence": 0,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000,
+      "billing": [
+        {
+          "unit": "output_text_tokens",
+          "quantity": 57.0
+        },
+        {
+          "unit": "output_audio_tokens",
+          "quantity": 0.0
+        },
+        {
+          "unit": "input_audio_tokens",
+          "quantity": 52.0
+        }
+      ]
+    },
+    {
+      "event": 650,
+      "elapsedMs": 12894,
+      "sequence": 2,
+      "startMs": 8792,
+      "endMs": 10872,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 12894,
+      "sequence": 2,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 12894,
+      "sequence": 2,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 12894,
+      "sequence": 2,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 12894,
+      "sequence": 2,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 12894,
+      "sequence": 2,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 12894,
+      "sequence": 2,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 12894,
+      "sequence": 2,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 12894,
+      "sequence": 2,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 12894,
+      "sequence": 2,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 13269,
+      "sequence": 2,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 652,
+      "elapsedMs": 13269,
+      "sequence": 2,
+      "startMs": 8792,
+      "endMs": 10872,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 653,
+      "elapsedMs": 13269,
+      "sequence": 2,
+      "startMs": 8792,
+      "endMs": 10872,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 13269,
+      "sequence": 2,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 13404,
+      "sequence": 2,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 13404,
+      "sequence": 2,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 13404,
+      "sequence": 2,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 13404,
+      "sequence": 2,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 13404,
+      "sequence": 2,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 13404,
+      "sequence": 2,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 13404,
+      "sequence": 2,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 13404,
+      "sequence": 2,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 13404,
+      "sequence": 2,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 655,
+      "elapsedMs": 13404,
+      "sequence": 2,
+      "startMs": 8792,
+      "endMs": 10872,
+      "text": "        ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 154,
+      "elapsedMs": 13404,
+      "sequence": 0,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000,
+      "billing": [
+        {
+          "unit": "output_text_tokens",
+          "quantity": 29.0
+        },
+        {
+          "unit": "output_audio_tokens",
+          "quantity": 0.0
+        },
+        {
+          "unit": "input_audio_tokens",
+          "quantity": 12.0
+        }
+      ]
+    },
+    {
+      "event": 650,
+      "elapsedMs": 14448,
+      "sequence": 3,
+      "startMs": 11192,
+      "endMs": 12472,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 14458,
+      "sequence": 3,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 14562,
+      "sequence": 3,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 14569,
+      "sequence": 3,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 14569,
+      "sequence": 3,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 14569,
+      "sequence": 3,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 14569,
+      "sequence": 3,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 14569,
+      "sequence": 3,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 652,
+      "elapsedMs": 14569,
+      "sequence": 3,
+      "startMs": 11192,
+      "endMs": 12472,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 653,
+      "elapsedMs": 14569,
+      "sequence": 3,
+      "startMs": 11192,
+      "endMs": 12472,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 14588,
+      "sequence": 3,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 14588,
+      "sequence": 3,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 14620,
+      "sequence": 3,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 14640,
+      "sequence": 3,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 14655,
+      "sequence": 3,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 655,
+      "elapsedMs": 14655,
+      "sequence": 3,
+      "startMs": 11192,
+      "endMs": 12472,
+      "text": "   ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 154,
+      "elapsedMs": 14655,
+      "sequence": 0,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000,
+      "billing": [
+        {
+          "unit": "output_text_tokens",
+          "quantity": 20.0
+        },
+        {
+          "unit": "output_audio_tokens",
+          "quantity": 0.0
+        },
+        {
+          "unit": "input_audio_tokens",
+          "quantity": 12.0
+        }
+      ]
+    },
+    {
+      "event": 650,
+      "elapsedMs": 15744,
+      "sequence": 4,
+      "startMs": 12792,
+      "endMs": 13592,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 15763,
+      "sequence": 4,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 15790,
+      "sequence": 4,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 15803,
+      "sequence": 4,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 15935,
+      "sequence": 4,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 15942,
+      "sequence": 4,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 652,
+      "elapsedMs": 15942,
+      "sequence": 4,
+      "startMs": 12792,
+      "endMs": 13592,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 653,
+      "elapsedMs": 15942,
+      "sequence": 4,
+      "startMs": 12792,
+      "endMs": 13592,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 15942,
+      "sequence": 4,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 15942,
+      "sequence": 4,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 15942,
+      "sequence": 4,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 15942,
+      "sequence": 4,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 15942,
+      "sequence": 4,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 15970,
+      "sequence": 4,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 655,
+      "elapsedMs": 15970,
+      "sequence": 4,
+      "startMs": 12792,
+      "endMs": 13592,
+      "text": "    ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 154,
+      "elapsedMs": 15970,
+      "sequence": 0,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000,
+      "billing": [
+        {
+          "unit": "output_text_tokens",
+          "quantity": 17.0
+        },
+        {
+          "unit": "output_audio_tokens",
+          "quantity": 0.0
+        },
+        {
+          "unit": "input_audio_tokens",
+          "quantity": 8.0
+        }
+      ]
+    },
+    {
+      "event": 650,
+      "elapsedMs": 17695,
+      "sequence": 5,
+      "startMs": 13912,
+      "endMs": 15352,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 17695,
+      "sequence": 5,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 17700,
+      "sequence": 5,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 17700,
+      "sequence": 5,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 17700,
+      "sequence": 5,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 17700,
+      "sequence": 5,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 17700,
+      "sequence": 5,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 17700,
+      "sequence": 5,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 652,
+      "elapsedMs": 17700,
+      "sequence": 5,
+      "startMs": 13912,
+      "endMs": 15352,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 653,
+      "elapsedMs": 17700,
+      "sequence": 5,
+      "startMs": 13912,
+      "endMs": 15352,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 17700,
+      "sequence": 5,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 17700,
+      "sequence": 5,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 17700,
+      "sequence": 5,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 17700,
+      "sequence": 5,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 17700,
+      "sequence": 5,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 17700,
+      "sequence": 5,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 655,
+      "elapsedMs": 17700,
+      "sequence": 5,
+      "startMs": 13912,
+      "endMs": 15352,
+      "text": "    ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 154,
+      "elapsedMs": 17700,
+      "sequence": 0,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000,
+      "billing": [
+        {
+          "unit": "output_text_tokens",
+          "quantity": 19.0
+        },
+        {
+          "unit": "output_audio_tokens",
+          "quantity": 0.0
+        },
+        {
+          "unit": "input_audio_tokens",
+          "quantity": 8.0
+        }
+      ]
+    },
+    {
+      "event": 650,
+      "elapsedMs": 19095,
+      "sequence": 6,
+      "startMs": 15512,
+      "endMs": 16792,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 19104,
+      "sequence": 6,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 19104,
+      "sequence": 6,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 19104,
+      "sequence": 6,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 19104,
+      "sequence": 6,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 19106,
+      "sequence": 6,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 19125,
+      "sequence": 6,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 19155,
+      "sequence": 6,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 19157,
+      "sequence": 6,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 652,
+      "elapsedMs": 19178,
+      "sequence": 6,
+      "startMs": 15512,
+      "endMs": 16792,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 653,
+      "elapsedMs": 19178,
+      "sequence": 6,
+      "startMs": 15512,
+      "endMs": 16792,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 19190,
+      "sequence": 6,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 19208,
+      "sequence": 6,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 19225,
+      "sequence": 6,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 19239,
+      "sequence": 6,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 19256,
+      "sequence": 6,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 19286,
+      "sequence": 6,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 19306,
+      "sequence": 6,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 19308,
+      "sequence": 6,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 19316,
+      "sequence": 6,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 19333,
+      "sequence": 6,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 19351,
+      "sequence": 6,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 655,
+      "elapsedMs": 19351,
+      "sequence": 6,
+      "startMs": 15512,
+      "endMs": 16792,
+      "text": "        ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 154,
+      "elapsedMs": 19351,
+      "sequence": 0,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000,
+      "billing": [
+        {
+          "unit": "output_text_tokens",
+          "quantity": 27.0
+        },
+        {
+          "unit": "output_audio_tokens",
+          "quantity": 0.0
+        },
+        {
+          "unit": "input_audio_tokens",
+          "quantity": 12.0
+        }
+      ]
+    },
+    {
+      "event": 650,
+      "elapsedMs": 19644,
+      "sequence": 7,
+      "startMs": 16952,
+      "endMs": 17752,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 19661,
+      "sequence": 7,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 19674,
+      "sequence": 7,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 19690,
+      "sequence": 7,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 19707,
+      "sequence": 7,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 19720,
+      "sequence": 7,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 19734,
+      "sequence": 7,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 652,
+      "elapsedMs": 19754,
+      "sequence": 7,
+      "startMs": 16952,
+      "endMs": 17752,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 653,
+      "elapsedMs": 19755,
+      "sequence": 7,
+      "startMs": 16952,
+      "endMs": 17752,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 19763,
+      "sequence": 7,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 19782,
+      "sequence": 7,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 19803,
+      "sequence": 7,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 19812,
+      "sequence": 7,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 19834,
+      "sequence": 7,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 19852,
+      "sequence": 7,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 19869,
+      "sequence": 7,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 655,
+      "elapsedMs": 19871,
+      "sequence": 7,
+      "startMs": 16952,
+      "endMs": 17752,
+      "text": "    ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 154,
+      "elapsedMs": 19871,
+      "sequence": 0,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000,
+      "billing": [
+        {
+          "unit": "output_text_tokens",
+          "quantity": 17.0
+        },
+        {
+          "unit": "output_audio_tokens",
+          "quantity": 0.0
+        },
+        {
+          "unit": "input_audio_tokens",
+          "quantity": 4.0
+        }
+      ]
+    },
+    {
+      "event": 650,
+      "elapsedMs": 20314,
+      "sequence": 8,
+      "startMs": 17752,
+      "endMs": 18232,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 20324,
+      "sequence": 8,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 651,
+      "elapsedMs": 20335,
+      "sequence": 8,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 652,
+      "elapsedMs": 20353,
+      "sequence": 8,
+      "startMs": 17752,
+      "endMs": 18232,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 653,
+      "elapsedMs": 20353,
+      "sequence": 8,
+      "startMs": 17752,
+      "endMs": 18232,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 20360,
+      "sequence": 8,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 20369,
+      "sequence": 8,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 20382,
+      "sequence": 8,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    },
+    {
+      "event": 654,
+      "elapsedMs": 20397,
+      "sequence": 8,
+      "startMs": 0,
+      "endMs": 0,
+      "text": " ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 655,
+      "elapsedMs": 20398,
+      "sequence": 8,
+      "startMs": 17752,
+      "endMs": 18232,
+      "text": "  ",
+      "statusCode": 20000000
+    },
+    {
+      "event": 154,
+      "elapsedMs": 20398,
+      "sequence": 0,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000,
+      "billing": [
+        {
+          "unit": "output_text_tokens",
+          "quantity": 10.0
+        },
+        {
+          "unit": "output_audio_tokens",
+          "quantity": 0.0
+        },
+        {
+          "unit": "input_audio_tokens",
+          "quantity": 4.0
+        }
+      ]
+    },
+    {
+      "event": 154,
+      "elapsedMs": 21309,
+      "sequence": 0,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000,
+      "billing": [
+        {
+          "unit": "output_text_tokens",
+          "quantity": 4.0
+        },
+        {
+          "unit": "output_audio_tokens",
+          "quantity": 0.0
+        },
+        {
+          "unit": "input_audio_tokens",
+          "quantity": 8.0
+        }
+      ]
+    },
+    {
+      "event": 152,
+      "elapsedMs": 21311,
+      "sequence": 0,
+      "startMs": 0,
+      "endMs": 0,
+      "text": "",
+      "statusCode": 20000000
+    }
+  ]
+}

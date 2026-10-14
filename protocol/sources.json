@@ -1,0 +1,12 @@
+{
+  "retrieved": "2026-10-14",
+  "document": "https://www.volcengine.com/docs/6561/1756902",
+  "proto_archive_sha256": "1e30c61ef9c91d139afd3000f96beeb6ee02f27944f957227ab44c9e986ef576",
+  "python_demo_archive_sha256": "b8184a650c4bc7599ea9a1ae3fbba40fdc0d88c14ac9f386c10ca83192033f09",
+  "files": {
+    "protocol/protos/products/understanding/ast/ast_service.proto": "279990188e83bef3969d3faa57a4e49408734f0cbf489d4fc894807de5f3e6bf",
+    "protocol/protos/products/understanding/base/au_base.proto": "15bf15c1a2c82df84012fff36d94354e97921d78c98db8892dc218b304dfef9e",
+    "protocol/protos/common/events.proto": "f0eb095fe9ad8d3795f55bc0bf8f29f5cab47551412495ee2a32ea2f3d495d7b",
+    "protocol/protos/common/rpcmeta.proto": "754a9e551378726ad4d5de05fbb0cd6879b2ee16b1f1ee53314dd57b61f2a494"
+  }
+}
