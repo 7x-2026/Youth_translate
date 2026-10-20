@@ -122,9 +122,17 @@ class SystemAudio:
     async def spawn(self, args):
         command = await self.command()
         # The capture worker has no need for any cloud credentials.
-        keep = {'PATH', 'Path', 'HOME', 'TMPDIR', 'TMP', 'TEMP', 'SystemRoot', 'WINDIR',
-                'COMSPEC', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'LANG'}
-        environment = {k: v for k, v in os.environ.items() if k in keep}
+        keep = {
+            'PATH', 'HOME', 'TMPDIR', 'TMP', 'TEMP', 'SystemRoot', 'WINDIR',
+            'COMSPEC', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'LANG',
+        }
+        keep_folded = {name.casefold() for name in keep}
+
+        environment = {
+            key: value
+            for key, value in os.environ.items()
+            if key.casefold() in keep_folded
+        }
         environment['PYTHONIOENCODING'] = 'utf-8'
         self.process = await asyncio.create_subprocess_exec(*command, *args, cwd=ROOT, env=environment,
             stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.PIPE,

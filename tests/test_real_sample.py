@@ -5,7 +5,9 @@ from collections import defaultdict
 from backend.generated.products.understanding.ast.ast_service_pb2 import TranslateResponse
 from backend.protocol import E, Normalizer
 
-SAMPLE=json.loads((Path(__file__).parent/'fixtures/ast_real_redacted.json').read_text())
+SAMPLE = json.loads(
+    (Path(__file__).parent / 'fixtures/ast_real_redacted.json').read_text(encoding='utf-8')
+)
 
 def test_live_sample_fragment_semantics_and_finalization():
     n=Normalizer('live-probe',1,'delta')

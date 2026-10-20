@@ -172,3 +172,30 @@ def test_windows_uses_default_output_loopback_all_channels_and_shared_mode():
     assert calls == [dict(id='headphones', include_loopback=True),
         dict(samplerate=16000, channels=None, blocksize=1280, exclusive_mode=False), dict(numframes=640)]
     assert json.loads(output.getvalue())['label'] == 'Headphones'
+
+def test_worker_environment_filter_is_case_insensitive_and_excludes_secrets():
+    import os
+
+    keep = {
+        'PATH', 'HOME', 'TMPDIR', 'TMP', 'TEMP', 'SystemRoot', 'WINDIR',
+        'COMSPEC', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'LANG',
+    }
+    keep_folded = {name.casefold() for name in keep}
+
+    source = {
+        'SYSTEMROOT': r'C:\WINDOWS',
+        'PATH': r'C:\WINDOWS\System32',
+        'VOLC_API_KEY': 'must-not-be-passed',
+    }
+
+    environment = {
+        key: value
+        for key, value in source.items()
+        if key.casefold() in keep_folded
+    }
+    environment['PYTHONIOENCODING'] = 'utf-8'
+
+    assert environment['SYSTEMROOT'] == r'C:\WINDOWS'
+    assert environment['PATH'] == r'C:\WINDOWS\System32'
+    assert environment['PYTHONIOENCODING'] == 'utf-8'
+    assert 'VOLC_API_KEY' not in environment
