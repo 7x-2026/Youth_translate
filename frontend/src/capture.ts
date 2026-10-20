@@ -1,5 +1,5 @@
 import workletUrl from './worklet.ts?worker&url';
-import { isPhoneInput, preferredComputerInput } from './input';
+import { isPhoneInput, preferredComputerInput, type AudioSource } from './input';
 export type ActiveInput = {label:string; warning:string};
 export class Capture {
   stream?: MediaStream;
@@ -8,9 +8,44 @@ export class Capture {
   private gate = false;
   private closing?: Promise<void>;
   private flushResolve?: ()=>void;
+  private interrupted=false;
   constructor(private packet:(buffer:ArrayBuffer)=>void, private meter:(rms:number)=>void, private problem:(message:string)=>void) {}
-  async open(deviceId:string, packetMs:number, roomMode=false):Promise<ActiveInput> {
+  async open(source:AudioSource, packetMs:number, roomMode=false):Promise<ActiveInput> {
     try {
+      this.interrupted=false;
+      if(source.kind!=='microphone')throw Error('内部音频请使用本机采集组件。');
+      const input=await this.openMicrophone(source.deviceId,roomMode);
+      const interrupt=(message:string)=>{
+        if(this.interrupted)return;
+        this.interrupted=true;this.enable(false);this.problem(message);
+      };
+      this.stream!.getTracks().forEach(track=>{
+        track.onended=()=>interrupt('音频设备已断开，请重新选择输入并点击继续。');
+        track.onmute=()=>interrupt('音频设备被系统中断，请检查设备并点击继续。');
+      });
+      this.context=new AudioContext();
+      await this.context.resume();
+      await this.context.audioWorklet.addModule(workletUrl);
+      if(this.interrupted||!this.stream?.getAudioTracks().some(t=>t.readyState==='live'))throw Error('音频输入已中断，请重新选择并启动。');
+      this.node=new AudioWorkletNode(this.context,'classroom-capture',{processorOptions:{packetMs},outputChannelCount:[1]});
+      this.node.port.onmessage=({data})=>{
+        if(data.type==='audio') this.packet(data.buffer);
+        if(data.type==='meter') this.meter(data.value);
+        if(data.type==='flushed') this.flushResolve?.();
+      };
+      this.context.onstatechange=()=>{
+        if(this.context?.state==='suspended' && this.gate) this.context.resume().catch(()=>interrupt('音频采集已暂停，请点击继续。'));
+      };
+      // The Worklet always outputs silence, so this graph never plays input audio.
+      this.context.createMediaStreamSource(new MediaStream(this.stream!.getAudioTracks())).connect(this.node).connect(this.context.destination);
+      return input;
+    } catch(error) {
+      await this.close();
+      throw error;
+    }
+  }
+  isLive(){return !!this.stream?.getAudioTracks().some(t=>t.readyState==='live');}
+  private async openMicrophone(deviceId:string,roomMode:boolean):Promise<ActiveInput> {
       const constraints=(id:string):MediaStreamConstraints=>({audio:{deviceId:id?{exact:id}:undefined, channelCount:1, echoCancellation:!roomMode, noiseSuppression:!roomMode, autoGainControl:true},video:false});
       const list=await navigator.mediaDevices.enumerateDevices().catch(()=>[] as MediaDeviceInfo[]);
       let automatic:ReturnType<typeof preferredComputerInput>=deviceId?null:preferredComputerInput(list);
@@ -31,25 +66,7 @@ export class Capture {
       }
       const label=this.stream.getAudioTracks()[0]?.label||automatic?.device.label||'未命名麦克风';
       const warning=deviceId?'':automatic?.recognizedBuiltIn?'':isPhoneInput(label)?'未找到电脑麦克风，当前回退到手机输入；请在上方手动选择。':'未能识别电脑内置麦克风，已自动选择可用输入；请核对设备名称。';
-      this.context=new AudioContext();
-      await this.context.resume();
-      await this.context.audioWorklet.addModule(workletUrl);
-      this.node=new AudioWorkletNode(this.context,'classroom-capture',{processorOptions:{packetMs},outputChannelCount:[1]});
-      this.node.port.onmessage=({data})=>{
-        if(data.type==='audio') this.packet(data.buffer);
-        if(data.type==='meter') this.meter(data.value);
-        if(data.type==='flushed') this.flushResolve?.();
-      };
-      this.stream.getAudioTracks().forEach(track=>{
-        track.onended=()=>this.problem('麦克风已断开，请重新选择设备并点击继续。');
-        track.onmute=()=>this.problem('麦克风被系统中断，请检查设备并点击继续。');
-      });
-      this.context.onstatechange=()=>{
-        if(this.context?.state==='suspended' && this.gate) this.context.resume().catch(()=>this.problem('音频采集已暂停，请点击继续。'));
-      };
-      this.context.createMediaStreamSource(this.stream).connect(this.node).connect(this.context.destination);
       return {label,warning};
-    } catch(error) { await this.close(); throw error; }
   }
   enable(value:boolean) {
     if(value===this.gate) return;
@@ -69,6 +86,7 @@ export class Capture {
       });
     }
     this.gate=false;
+    this.flushResolve=undefined;
     this.stream?.getTracks().forEach(track=>{track.onended=null;track.onmute=null;track.stop();});
     this.node?.disconnect(); this.node?.port.close();
     if(this.context) { this.context.onstatechange=null; try{await this.context.close();}catch{/* Already closed by an interruption. */} }

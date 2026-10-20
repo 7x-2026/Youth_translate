@@ -132,3 +132,20 @@ def test_resource_not_granted_has_actionable_message():
     error=classify(InvalidStatus(response))
     assert error.code=='resource_not_granted' and not error.retryable
     assert '同声传译2.0' in error.message
+
+async def test_prepare_does_not_send_session_or_audio_until_capture_is_ready():
+    cloud=FakeCloud();s,events=setup(cloud)
+    s.prepare();await until(lambda:s.cloud_warmup.pending.done())
+    assert cloud.frames==[] and not s.wanted and s.state=='idle'
+    await s.start();await until(lambda:s.state=='running')
+    assert [r.event for r in cloud.frames]==[E.StartSession]
+    await s.end();assert cloud.closed
+
+async def test_prepare_without_valid_config_never_opens_a_cloud_connection():
+    calls=[]
+    async def emit(_):pass
+    for settings in (Settings(),Settings(api_key='ark-test-only',response_mode='delta'),Settings(api_key='test-only')):
+        s=Session(settings,emit,lambda *a,**k:calls.append(True))
+        s.prepare();await asyncio.sleep(0);assert s.cloud_warmup.pending is None
+        await s.end(immediate=True)
+    assert calls==[]

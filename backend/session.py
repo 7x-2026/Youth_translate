@@ -6,6 +6,8 @@ from contextlib import suppress
 import websockets
 from websockets.exceptions import InvalidStatus, ConnectionClosed
 from backend.protocol import E, LANGUAGES, RelayError, Normalizer, cloud_error, decode, request
+from backend.audio_diagnostics import AudioDiagnostics
+from backend.cloud_warmup import CloudWarmup
 
 MAX_QUEUE_BYTES = 48000  # 1.5 s; browser reserves at most 0.5 s.
 
@@ -46,6 +48,16 @@ class Session:
         self.last_gap = 0
         self.tokens, self.token_time = 64000.0, time.monotonic()
         self.usage = []
+        self.audio_diagnostics=AudioDiagnostics()
+        self.cloud_warmup=CloudWarmup(self.new_connection)
+
+    def new_connection(self):
+        return self.connector(self.settings.ws_url, additional_headers={'X-Api-Key': self.settings.api_key, 'X-Api-Resource-Id': self.settings.resource_id, 'X-Api-Connect-Id': str(uuid.uuid4())}, ping_interval=None, open_timeout=10, close_timeout=1, max_size=1024*1024, max_queue=8, write_limit=2560)
+
+    def prepare(self):
+        if self.wanted or (self.task and not self.task.done()):return
+        if not self.settings.api_key or self.settings.api_key.startswith('ark-') or self.settings.response_mode=='unverified':return
+        self.cloud_warmup.prepare()
 
     async def status(self, state, detail=''):
         self.state = state
@@ -79,12 +91,14 @@ class Session:
         self.token_time = now
         if len(packet) > self.tokens: raise RelayError('rate_limit', '音频上传超过允许速率。')
         self.tokens -= len(packet)
+        self.audio_diagnostics.receive(packet)
         if self.queue.push(packet): await self.gap('音频积压：已丢弃最旧的未发送音频，字幕可能存在缺口。')
 
     async def run(self):
         attempt = 0
         while self.wanted:
             self.epoch += 1
+            self.audio_diagnostics=AudioDiagnostics()
             self.finish, self.finished = asyncio.Event(), asyncio.Event()
             normalizer = Normalizer(self.class_id, self.epoch, self.settings.response_mode)
             await self.status('connecting' if attempt == 0 else 'recovering', '正在建立云端会话…')
@@ -114,7 +128,7 @@ class Session:
     async def connection(self, normalizer):
         session_id = str(uuid.uuid4())
         # Official Python Demo disables automatic Ping; no fabricated business heartbeat.
-        async with self.connector(self.settings.ws_url, additional_headers={'X-Api-Key': self.settings.api_key, 'X-Api-Resource-Id': self.settings.resource_id, 'X-Api-Connect-Id': str(uuid.uuid4())}, ping_interval=None, open_timeout=10, close_timeout=1, max_size=1024*1024, max_queue=8, write_limit=2560) as ws:
+        async with self.cloud_warmup.connection() as ws:
             self.upstream = ws
             await ws.send(request(session_id, E.StartSession, self.mode))
             async with asyncio.timeout(15):
@@ -142,6 +156,7 @@ class Session:
             try: packet = await asyncio.wait_for(self.queue.get(), .08)
             except TimeoutError: continue
             await asyncio.wait_for(ws.send(request(session_id, E.TaskRequest, audio=packet)), 2)
+            self.audio_diagnostics.send(packet)
         await ws.send(request(session_id, E.FinishSession))
 
     async def receiver(self, ws, normalizer, session_id):
@@ -152,9 +167,12 @@ class Session:
             if msg.event == E.SessionFinished:
                 self.finished.set()
                 return
-            if msg.event == E.AudioMuted and self.wanted: await self.status('muted', '云端暂未检测到语音；麦克风仍在采集')
+            if msg.event == E.AudioMuted and self.wanted:
+                self.audio_diagnostics.cloud_muted_ms=msg.muted_duration_ms
+                await self.status('muted', '云端暂未检测到语音；音频输入仍在采集')
             event = normalizer.feed(msg)
             if event:
+                if event['text']:self.audio_diagnostics.subtitle(event['channel'])
                 if self.state == 'muted' and self.wanted: await self.status('running', '正在翻译')
                 await self.emit(event)
             if msg.event == E.UsageResponse:
@@ -168,6 +186,7 @@ class Session:
 
     async def end(self, pause=False, immediate=False):
         self.wanted = False
+        await self.cloud_warmup.close()
         if pause or immediate: self.queue.clear()
         if self.task and not self.task.done():
             if self.state in ('running', 'muted') and not immediate:
@@ -179,7 +198,7 @@ class Session:
             self.task.cancel()
             await asyncio.gather(self.task, return_exceptions=True)
         self.queue.clear()
-        await self.status('paused' if pause else 'stopped', '已暂停，麦克风已释放' if pause else '课程已结束')
+        await self.status('paused' if pause else 'stopped', '已暂停，音频输入已释放' if pause else '课程已结束')
 
 
 def classify(exc):

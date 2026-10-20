@@ -4,8 +4,9 @@ version = "0.1.0"
 description = "Local microphone relay for Doubao AST S2T subtitles"
 requires-python = ">=3.11"
 dependencies = [
-  "fastapi>=0.115,<1", "uvicorn[standard]>=0.32,<1",
+  "fastapi>=0.115,<1", "uvicorn[standard]>=0.32,<1", "anyio>=4,<5",
   "websockets>=15,<16", "python-socks[asyncio]>=2.7,<3", "protobuf>=6.31,<7", "python-dotenv>=1,<2",
+  "soundcard>=0.4.5,<0.5; sys_platform == 'win32'",
 ]
 [dependency-groups]
 dev = ["pytest>=8,<10", "pytest-asyncio>=0.25,<2", "httpx>=0.28,<1", "grpcio-tools>=1.73,<2"]

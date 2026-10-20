@@ -44,6 +44,13 @@ def test_error_codes(code,retry):
     r=TranslateResponse();r.response_meta.StatusCode=code;r.response_meta.Message='secret original course text'
     e=cloud_error(r);assert e.retryable==retry;assert 'secret' not in e.message
 
+def test_audio_timeout_does_not_tell_users_to_change_credentials():
+    r=TranslateResponse();r.response_meta.StatusCode=45000081
+    error=cloud_error(r)
+    assert error.retryable and error.code=='cloud_45000081'
+    assert '音频' in error.message and '8 秒' in error.message
+    assert 'Key' not in error.message and '余额' not in error.message
+
 def test_error_status_without_failure_event_is_not_silently_retried():
     r=msg(E.None_ if hasattr(E,'None_') else 0)
     r.response_meta.StatusCode=45000001

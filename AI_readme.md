@@ -6,12 +6,31 @@
 
 这是**本机网页 + 本机 Python 中继 + 火山引擎云端 AST S2T**，并非离线翻译或纯前端站点。普通使用先 `npm --prefix frontend run build`，再在根目录运行 `uv run --locked python -m backend`，打开 `http://localhost:8765`。`npm --prefix frontend run dev` 只启动 Vite 开发服务器；使用开发模式时还要另开终端运行 Python 后端，访问 `http://localhost:5173`。
 
-数据流：浏览器 `getUserMedia` → `AudioWorklet` → 连续重采样为 16kHz PCM16 → 本机 `/ws/translate` → `backend.session.Session` → 官方 AST WSS / Protobuf → `backend.protocol.Normalizer` → 浏览器原文、译文与历史状态。云端只返回文字，不请求或播放合成语音。
+数据流：麦克风用浏览器 `getUserMedia` → `AudioWorklet` → 连续重采样为 16kHz PCM16；扬声器 / 耳机用本机原生采集 → `/ws/system-audio` → 浏览器 `SystemCapture` 分包。两者再共用本机 `/ws/translate` → `backend.session.Session` → 官方 AST WSS / Protobuf → `backend.protocol.Normalizer` → 浏览器原文、译文与历史状态。云端只返回文字，不请求或播放合成语音。
+
+2026-10-20 扩展范围：用户要求 Windows / macOS 读取会议输出、保持原播放、不共享屏幕，且只用一个设备选择框。`/api/audio-outputs` 枚举原生输出设备名称与 ID；UI 按输入/输出分组，输出项只用硬件原名。`AudioSource` 的设备 ID 决定实际采集端点，不改变系统默认设备。不要恢复 `getDisplayMedia` 方案，也不要把输出设备 ID 当作浏览器麦克风 ID。
+
+Windows 的 `backend.windows_audio` 子进程使用 SoundCard WASAPI 的所选输出回环、全部声道、共享模式，混为单声道后编码 PCM16；禁止 exclusive mode、回放或设置系统音量。平台依赖使用 Windows marker 加入锁文件。macOS 14.2+ 的 `native/SystemAudio.swift` 使用 Core Audio tap，`muteBehavior = .unmuted`，仅创建私有采集聚合设备；AVAudioConverter 连续转为 16kHz PCM16。无屏幕 API。构建脚本生成带 `NSAudioCaptureUsageDescription` 的本地 app 并自签名，产物留在忽略目录 `.local/`；新机器需要 Apple Command Line Tools。
+
+`backend.system_audio.SystemAudio` 管理原生进程（首行 readiness JSON，之后 PCM16）。子进程环境不继承云端 Key，退出有 terminate/kill 上限。音频 WS 严格校验 localhost Origin，仅允许一条采集；监听心跳和断开，ASGI 取消清理受 shield 保护。`stop` 控制会先释放本机采集再关闭 WS，浏览器等关闭确认后继续，防止旧采集占用导致快速继续失败。`SystemCapture` 等云端 running 才上传，暂停和恢复时清空待发 PCM，支持跨奇数字节块和短尾包；不开 AudioContext，不请求浏览器麦克风或视频权限，不重放旧音频。系统采集只在内存和本机管道流转，不写磁盘。
+
+运行中可直接切换输入。`switch-capture.ts` 先关闭旧采集、等待释放，再打开新采集；切换期间每 80ms 发送零样本维持现有云端会话。`main.tsx` 用 revision 忽略旧采集回调，新采集 open 完成后才安装为当前采集并按云端状态启用上传；不调用 start/end，不重置字幕、计时或 epoch。失败则明确暂停，不回退到其他麦克风。暂停/结束、云端终止或离开页面会取消切换、停止补包并清理新采集；迟到的麦克风授权结果也会关闭。测试涵盖释放顺序、12 秒初始化等待、失败、设备断开和取消后的迟到结果。首次设备权限仍由系统决定，不承诺无采音空档。
+
+`AudioProgress` 观察当前采集包是否交给本机翻译 WS；缺包或持续音量活动 30 秒无字幕时，在既有状态栏显示对应等待原因，不增加提示横幅，不自动重连。它只是音量活动统计，不是 VAD；纯静音正常持续上传不会触发无字幕告警。只用当前 class/epoch 的非空字幕清除等待；重连及切换设备就绪后重置。WS send 成功不等于云端收到或识别，界面不得据此声称云端故障已定位。用户反馈的连续歌词约两分钟才出字幕尚未复现或确认根因。
+
+启动优化：`begin` 复用页面已通过的 health（服务端在正式 start 时仍检查配置），将 `RelayClient.prepare` 与音频初始化并行。后端声明 `cloudWarmupSupported` 时，prepare 控制会建立短暂的已鉴权云端 WS，但不发送 StartSession 或音频；设备完全就绪后才正式启动并开上传门。`CloudWarmup` 单独管理 5 秒未用连接租期、交接、失败和取消；到期/断开清理，已失效连接直接重建。不要在页面加载或暂停期间自动发起云端预连接。旧后端未声明支持时只预连本机 WS。初始化失败 cancelPrepare；离开页面也中止启动，迟到的设备就绪结果不能重新开启会话。此优化缩短启动通道等待，不改变模型识别与首次字幕耗时。
+
+`/api/audio-diagnostics` 由 `AudioDiagnostics` 提供本机每个会话的 received / sent-to-cloud 时长、队列长度、电平、收发时间、首个非空原文/译文时刻，以及最后一次 AudioMuted 的时长。每个 cloud epoch 重置；sent 表示云端 WS send 完成，不是服务端识别成功。有效信号阈值只是测量基点，不是 VAD，不驱动重连，不缓存音频或文本。可运行 `python -m scripts.watch_audio_diagnostics --seconds 60` 保存纯数值报告到 `.local/`，观察用户自主运行的当前会话，不额外建立云端连接。`scripts.probe --latency-report <路径>` 则会发送明确指定的短测试 WAV 并产生用量，报告只记录时刻；`--gain` 仅用于公开测试音频对比，不改变实际采集增益。
+
+长静音修复：Core Audio / WASAPI 在输出设备空闲时可能不回调音频，不能把原生 stdout 直接转发作为持续音频时钟。`paced_audio` 并行读取原生数据并按单调时钟每 80ms 输出 2560 字节；无数据的时间段补 PCM16 零样本，声音恢复后接着发送。原生 EOF / 异常会停止并报错，不无限补静音掩盖进程退出。`PCMFrames` 仅保留 0.5 秒、按完整采样丢弃旧数据；消费端卡顿后跳过旧音频并报告 gap，不突发追发。前端 gap 只提示并增加缺口计数，不暂停会话。第一版麦克风的 Worklet 持续采样静音行为不变。自动测试覆盖模拟 10 分钟无原生数据后恢复、奇数字节边界、缓冲上限、调度卡顿、进程退出与前端静音持续上传。真实云端 600 秒无原生数据专项已通过（同一会话、0 错误，随后官方公开语音返回 8 段原文和 8 段译文定稿，暂停/继续正常）；不代表真实硬件长课已验收。复测脚本 `python -m scripts.soak_silence --seconds 600 --public-wav <官方测试WAV路径>`，会连接现有云端并产生用量；不采集现场声音，报告不保存字幕文本。
+
+`scripts.check_system_audio` 是纯本地诊断，只打印设备名、电平及采样量，绝不连接云端。实际翻译测试仍通过已有 AST 云端服务；不得把原生电平、歌曲字幕或 Windows 模拟测试当成 Windows 会议实测。
 
 | 位置 | 职责与修改入口 |
 |---|---|
 | `frontend/src/main.tsx`、`style.css` | 页面、控制动作、状态与提示；日常 UI 修改从这里开始 |
-| `frontend/src/input.ts`、`capture.ts` | 优先电脑内置麦克风、手动设备选择、浏览器采集生命周期 |
+| `frontend/src/input.ts`、`capture.ts`、`system-capture.ts` | 统一硬件选择、麦克风与原生输出采集生命周期 |
+| `backend/system_audio.py`、`windows_audio.py`、`native/SystemAudio.swift` | 原生设备枚举与 Windows / macOS 音频采集 |
 | `frontend/src/worklet.ts`、`audio.ts` | 100ms 输入电平、44.1/48kHz 连续重采样、PCM16 与 40/80ms 分包 |
 | `frontend/src/connection.ts`、`subtitles.ts` | 本机 WebSocket、心跳/重连、字幕增量/定稿与 epoch 隔离 |
 | `backend/config.py`、`app.py` | `.env`、localhost 限制、健康检查、单连接、静态资源与本机 WS |
@@ -98,7 +117,7 @@ VOLC_SUBTITLE_RESPONSE_MODE=delta
 
 ## 页面行为
 
-- 点击“开始课程”后申请麦克风，等待上游 SessionStarted 才开始采集上传。麦克风默认“电脑内置优先 · 自动”：优先识别 Mac/Windows 内置输入，仍可从下拉框手动选择 iPhone、USB 等设备；页面显示实际使用的输入源。首次授权前浏览器可能隐藏设备名称，获准后会重新识别，再上传音频。若无法识别内置设备或只能使用系统默认，会提示核对输入源。自动翻译模式中英逐语种反转；混合输入可以输出混合译文。方向/设备/收音方式/包长在暂停后切换，继续时新建会话。
+- 点击“开始课程”后申请麦克风，等待上游 SessionStarted 才开始采集上传。麦克风默认“电脑内置优先 · 自动”：优先识别 Mac/Windows 内置输入，仍可从下拉框手动选择 iPhone、USB 等设备；页面显示实际使用的输入源。首次授权前浏览器可能隐藏设备名称，获准后会重新识别，再上传音频。若无法识别内置设备或只能使用系统默认，会提示核对输入源。自动翻译模式中英逐语种反转；混合输入可以输出混合译文。输入设备可运行中切换；方向/收音方式/包长在暂停后切换，继续时新建会话。
 - “云端等待语音”表示上游暂未判定出语音，麦克风仍在采集；它不表示电脑静音。麦克风输入条按近 100ms 的完整窗口统计，并用 dBFS 显示弱信号。远距离课堂可选“教室 · 远距离”，关闭浏览器降噪与回声消除，保留自动增益；环境噪声也可能更明显。更可靠的做法是在授课位置使用近距离外接麦克风。
 - 80ms 为默认，40ms 是实验选项。实际采样率经连续低通 FIR 和重采样转换为 16kHz PCM16，小端二进制传输；自然停顿仍传真实静音。
 - 译文中间结果直接显示，原文独立更新；分别定稿归档，不等待配对。字号 28–80px，支持全屏、原文开关；向上滚动停止跟随，点击“回到最新”恢复。
@@ -132,5 +151,5 @@ npm --prefix frontend run build
 - 常亮失败：检查浏览器支持及节电设置。后台冻结或锁屏不会保证可靠上传。
 - 网络抖动：检查实际授课位置 Wi-Fi 的上传稳定性，而非套餐下载速度；PCM 有效载荷约 0.256Mbps。缺口提示意味着内容可能漏译。
 - 不承诺稳定低于 1 秒；官方介绍的低延迟约 2–3 秒，首次可用译文 P50≤3秒/P95≤5秒是待验证目标，40ms 包只减少音频累积时间。
-- 不包含系统音频、会议音频、手机锁屏、学生端、账号、课后总结、语音合成或回放。最长会话、等包/长静音限制及计量累计语义待确认，不编造固定时限。
+- 已增加 Windows / macOS 原生系统音频与会议输出采集。Windows 和长时间会议仍待实机验收。不包含手机锁屏、学生端、账号、课后总结、语音合成或回放。最长会话、等包/长静音限制及计量累计语义待确认，不编造固定时限。
 - 真实课堂质量、45/90/120 分钟、120 分钟至少 3 次、断网/长静音、设备异常、常亮与账单核对尚未进行；短句麦克风与公开音频成功不代表长课已验收。

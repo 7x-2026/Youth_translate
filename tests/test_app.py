@@ -12,6 +12,14 @@ def test_health_redacted(client):
     r=client.get('/api/health').json()
     assert r['status']=='ok' and r['credentialsConfigured'] is False and r['ready'] is False
     assert 'api_key' not in r
+    assert r['cloudWarmupSupported'] is True
+
+def test_prepare_control_keeps_unconfigured_session_idle_without_error(client):
+    with client.websocket_connect('/ws/translate',headers={'origin':'http://localhost:8765'}) as ws:
+        assert ws.receive_json()['state']=='idle'
+        ws.send_json({'type':'prepare'})
+        ws.send_json({'type':'heartbeat'})
+        assert ws.receive_json()['type']=='heartbeat_ack'
 
 @pytest.mark.parametrize('origin',['https://evil.example','http://192.168.1.1:8765',None])
 def test_origin_denied(client,origin):

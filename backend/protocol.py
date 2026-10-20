@@ -43,8 +43,10 @@ def decode(data):
 
 def cloud_error(msg):
     code = msg.response_meta.StatusCode
+    if code == 45000081:
+        return RelayError('cloud_45000081', '云端等待音频超时（45000081）：约 8 秒未收到音频包。请核对所选输入是否为会议实际使用的扬声器 / 耳机，并检查采集与网络连接；正在尝试恢复。', True)
     # Only documented server/transient failures retry. Unknown failures stop.
-    transient = code == 45000081 or 55000000 <= code <= 55099999
+    transient = 55000000 <= code <= 55099999
     return RelayError(f'cloud_{code}', f'云端会话失败（状态码 {code}）。请检查 API Key、参数、资源权限、余额与额度；未知错误请联系供应商。', transient)
 
 @dataclass
