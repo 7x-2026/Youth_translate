@@ -14,13 +14,89 @@ const labels:Record<string,string>={idle:'准备就绪',connecting:'正在连接
 function assertReady(h:Health){
   if(!h.ready)throw Error(!h.credentialsConfigured?'请先在 .env 配置 VOLC_API_KEY，然后重启服务。':h.credentialSourceMismatch?'当前是火山方舟 ark- Key；请换为豆包语音新版控制台的 API Key。':'请先运行协议探测，确认音频封装及字幕语义，再设置 VOLC_SUBTITLE_RESPONSE_MODE。');
 }
+const DEFAULT_FONT_SIZE=48, DEFAULT_FONT_COLOR='#f2fbf7';
+const MIN_FONT_SIZE=16, MAX_FONT_SIZE=64, FONT_STEP=2;
+type DisplaySettings={fontSize:number|null;fontColor:string|null};
+function readDisplaySettings():DisplaySettings{
+  try{
+    const size=localStorage.getItem('subtitleFontSize'),color=localStorage.getItem('subtitleFontColor');
+    const number=size!==null&&/^\d+$/.test(size)?Number(size):NaN;
+    return {
+      fontSize:Number.isInteger(number)&&number>=MIN_FONT_SIZE&&number<=MAX_FONT_SIZE?number:null,
+      fontColor:color!==null&&/^#[0-9a-f]{6}$/i.test(color)?color:null,
+    };
+  }catch{return {fontSize:null,fontColor:null};}
+}
 function App(){
   const [health,setHealth]=useState<Health>();
   const [devices,setDevices]=useState<MediaDeviceInfo[]>([]);
   const [outputs,setOutputs]=useState<AudioOutput[]>([]);
   const [input,setInput]=useState('auto');const [mode,setMode]=useState('auto');const [packetMs,setPacketMs]=useState(80);const [roomMode,setRoomMode]=useState(false);
   const systemAudio=input==='system'||input.startsWith('system:');
-  const [font,setFont]=useState(48);const [source,setSource]=useState(true);
+  const [display,setDisplay]=useState<DisplaySettings>(readDisplaySettings);
+  const font=display.fontSize??DEFAULT_FONT_SIZE;
+  const subtitleStyle={fontSize:display.fontSize??undefined,color:display.fontColor??undefined};
+  const [source,setSource]=useState(true);
+  const speechSupported=typeof window.speechSynthesis!=='undefined'&&typeof window.SpeechSynthesisUtterance!=='undefined';
+  const [speaking,setSpeaking]=useState(false);const [speechHint,setSpeechHint]=useState('');
+  const utterance=useRef<SpeechSynthesisUtterance|null>(null);
+  function stopSpeech(){
+    const current=utterance.current;utterance.current=null;
+    if(current){current.onend=null;current.onerror=null;window.speechSynthesis.cancel();}
+    setSpeaking(false);
+  }
+  useEffect(()=>{
+    if(!speechSupported)return;
+    // Some browsers populate the system voice list asynchronously after this call.
+    try{window.speechSynthesis.getVoices();}catch{/* Report unavailable voices on click. */}
+    const cancel=()=>{
+      const current=utterance.current;utterance.current=null;
+      if(current){current.onend=null;current.onerror=null;window.speechSynthesis.cancel();}
+    };
+    window.addEventListener('pagehide',cancel);
+    return()=>{window.removeEventListener('pagehide',cancel);cancel();};
+  },[speechSupported]);
+  function speakTranslation(){
+    if(utterance.current){stopSpeech();return;}
+    const text=subtitles.current.translation?.text.trim();
+    if(!text||!speechSupported)return;
+    setSpeechHint('');
+    try{
+      const chinese=/\p{Script=Han}/u.test(text),lang=chinese?'zh-CN':'en-US';
+      const voices=window.speechSynthesis.getVoices();
+      const normalize=(value:string)=>value.toLowerCase().replaceAll('_','-');
+      const matches=voices.filter(v=>chinese?/^zh-(hans|cn|sg)(-|$)/i.test(normalize(v.lang)):/^en(-|$)/i.test(normalize(v.lang)));
+      const voice=matches.find(v=>v.localService&&normalize(v.lang)===normalize(lang))
+        ??matches.find(v=>v.localService)
+        ??matches.find(v=>normalize(v.lang)===normalize(lang))??matches[0];
+      const current=new SpeechSynthesisUtterance(text);
+      // An empty list can mean voices are still loading. Let the browser resolve
+      // the default for lang instead of treating it as a missing language pack.
+      current.lang=voice?.lang??lang;if(voice)current.voice=voice;
+      current.rate=1;current.pitch=1;current.volume=1;
+      current.onend=()=>{if(utterance.current===current){utterance.current=null;setSpeaking(false);}};
+      current.onerror=event=>{
+        if(utterance.current!==current)return;
+        utterance.current=null;setSpeaking(false);
+        const reason=event.error==='not-allowed'?'浏览器阻止了播报，请允许网站播放声音后重试。'
+          :event.error==='network'?'语音服务网络连接失败，请检查网络后重试。'
+          :['voice-unavailable','language-unavailable'].includes(event.error)?'浏览器没有可用的对应语言语音，请检查系统语音设置或更换浏览器。'
+          :'请检查浏览器语音服务与声音输出后重试。';
+        setSpeechHint(`译文播报未成功（${event.error}）：${reason}`);
+      };
+      utterance.current=current;setSpeaking(true);window.speechSynthesis.speak(current);
+    }catch{stopSpeech();setSpeechHint('语音播报不可用，请检查浏览器和系统语音设置。');}
+  }
+  // Null preserves the existing, different source/translation defaults (including mobile).
+  useEffect(()=>{
+    for(const [key,value] of [['subtitleFontSize',display.fontSize],['subtitleFontColor',display.fontColor]] as const){
+      try{if(value===null)localStorage.removeItem(key);else localStorage.setItem(key,String(value));}
+      catch{/* Storage restrictions must never interrupt the live session. */}
+    }
+  },[display.fontSize,display.fontColor]);
+  function adjustFont(delta:number){
+    setDisplay(old=>({...old,fontSize:Math.max(MIN_FONT_SIZE,Math.min(MAX_FONT_SIZE,(old.fontSize??DEFAULT_FONT_SIZE)+delta))}));
+  }
   const [status,setStatus]=useState<Status>({type:'status',state:'idle',detail:'选择音频输入后开始'});
   const [message,setMessage]=useState('');const [wakeStatus,setWakeStatus]=useState('未申请');
   const [activeInput,setActiveInput]=useState('');const [inputWarning,setInputWarning]=useState('');
@@ -198,11 +274,12 @@ function App(){
     <div className="statusbar"><span className={`dot ${status.state}`}/><strong>{!switching&&['running','muted'].includes(status.state)&&audioHint?'等待字幕':labels[status.state]||status.state}</strong><span>{!switching&&['running','muted'].includes(status.state)&&audioHint?audioHint:status.detail}</span><span className="timer">{time}</span></div>
     <section className="stage" aria-label="当前字幕">
       <div className="stage-top"><span>当前译文</span><span>LIVE · {mode==='auto'?'中文 ⇄ English':mode==='zh-en'?'中文 → English':'English → 中文'}</span></div>
-      <div className={`translation ${translations?.text?'':'placeholder'}`} style={{fontSize:font}} aria-live="polite" aria-atomic="true">{translations?.text||'让语言跟上课堂。'}{translations?.text&&!translations.isFinal&&<span className="provisional">翻译中</span>}</div>
-      {source&&<div className="original"><span>原文</span><p>{original?.text||'开始课程后，原文将在这里显示。'}</p></div>}
-      <div className="stage-bottom"><div className="volume"><span>音频输入</span><meter min="0" max="1" value={displayLevel(meter)} title={meter>0?`${Math.round(20*Math.log10(meter))} dBFS`:'无输入'}/><span>{meter>0?`${Math.round(20*Math.log10(meter))} dBFS`:'无输入'}</span></div><span>{wakeStatus}</span></div>
+      <div className={`translation ${translations?.text?'':'placeholder'}`} style={{...subtitleStyle,fontSize:font}} aria-live="polite" aria-atomic="true">{translations?.text||'让语言跟上课堂。'}{translations?.text&&!translations.isFinal&&<span className="provisional">翻译中</span>}</div>
+      {source&&<div className="original"><span>原文</span><p style={subtitleStyle}>{original?.text||'开始课程后，原文将在这里显示。'}</p></div>}
+      <div className="stage-bottom"><div className="volume"><span>音频输入</span><meter min="0" max="1" value={displayLevel(meter)} title={meter>0?`${Math.round(20*Math.log10(meter))} dBFS`:'无输入'}/><span>{meter>0?`${Math.round(20*Math.log10(meter))} dBFS`:'无输入'}</span></div><div className="speech-actions"><span>{wakeStatus}</span><button type="button" className="quiet speech-button" disabled={!speechSupported||(!speaking&&!translations?.text.trim())} aria-label={speaking?'停止播报':'播报当前译文'} aria-pressed={speaking} title={speechSupported?'朗读当前译文；优先本地音色，其他音色可能需要联网；播报声音可能被当前输入再次采集':'当前浏览器不支持语音播报'} onClick={speakTranslation}>{speaking?'■ 停止播报':'🔊 播报译文'}</button></div></div>
+      {(!speechSupported||speechHint)&&<div className="speech-hint" role="status">{speechSupported?speechHint:'当前浏览器不支持语音播报。'}</div>}
     </section>
-    <section className="preferences" aria-label="字幕设置"><label>字幕字号<input type="range" min="28" max="80" step="2" value={font} onChange={e=>setFont(Number(e.target.value))}/><span>{font}px</span></label><label><input type="checkbox" checked={source} onChange={e=>setSource(e.target.checked)}/>显示原文</label>{!systemAudio&&<label>收音方式<select value={roomMode?'room':'standard'} disabled={locked} onChange={e=>setRoomMode(e.target.value==='room')}><option value="standard">标准 · 近讲</option><option value="room">教室 · 远距离</option></select></label>}<label>音频包<select value={packetMs} disabled={locked} onChange={e=>setPacketMs(Number(e.target.value))}><option value="80">80ms · 默认</option><option value="40">40ms · 实验</option></select></label></section>
+    <section className="preferences" aria-label="字幕设置"><div className="display-settings" role="group" aria-label="显示设置"><span>显示设置</span><div className="font-size-control" role="group" aria-label="字号"><span>字号</span><button type="button" aria-label="减小字号" disabled={font<=MIN_FONT_SIZE} onClick={()=>adjustFont(-FONT_STEP)}>−</button><output aria-live="polite">{font}px</output><button type="button" aria-label="增大字号" disabled={font>=MAX_FONT_SIZE} onClick={()=>adjustFont(FONT_STEP)}>+</button></div><label>字体颜色<input type="color" value={display.fontColor??DEFAULT_FONT_COLOR} onChange={e=>setDisplay(old=>({...old,fontColor:e.target.value}))}/></label><button type="button" className="quiet" onClick={()=>setDisplay({fontSize:null,fontColor:null})}>恢复默认</button></div><label><input type="checkbox" checked={source} onChange={e=>setSource(e.target.checked)}/>显示原文</label>{!systemAudio&&<label>收音方式<select value={roomMode?'room':'standard'} disabled={locked} onChange={e=>setRoomMode(e.target.value==='room')}><option value="standard">标准 · 近讲</option><option value="room">教室 · 远距离</option></select></label>}<label>音频包<select value={packetMs} disabled={locked} onChange={e=>setPacketMs(Number(e.target.value))}><option value="80">80ms · 默认</option><option value="40">40ms · 实验</option></select></label></section>
     <section className="history-section"><div className="section-title"><h2>课堂记录 <span>{subtitles.history.length} 段</span></h2><div>{!follow&&<button onClick={()=>setFollow(true)}>↓ 回到最新</button>}<button className="quiet" disabled={!subtitles.history.length&&!translations?.text&&!original?.text} onClick={download}>导出 TXT</button></div></div>
       <div className="history" ref={history} onScroll={e=>{const el=e.currentTarget;setFollow(el.scrollHeight-el.clientHeight-el.scrollTop<36);}}>
         {!subtitles.history.length?<div className="empty">定稿后的字幕会按时间留在这里。<small>记录仅保存在当前页面，刷新前请主动导出。</small></div>:subtitles.history.filter(e=>source||e.channel==='translation').map(e=><article key={`${e.sessionEpoch}/${e.channel}/${e.segmentId}`}><time>{new Date(e.receivedAt).toLocaleTimeString()}</time><div><span className="channel">{e.channel==='translation'?'译文':'原文'}{e.unfinished?' · 未定稿':''}</span><p>{e.text||'（无文本）'}</p></div></article>)}
