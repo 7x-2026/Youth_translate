@@ -11,7 +11,7 @@ class RelayError(Exception):
         self.code, self.message, self.retryable = code, message, retryable
 
 
-def request(session_id, event, mode='auto', audio=b''):
+def request(session_id, event, mode='auto', audio=b'', *, corpus=None):
     req = TranslateRequest()
     req.request_meta.SessionID = session_id
     req.event = event
@@ -23,6 +23,9 @@ def request(session_id, event, mode='auto', audio=b''):
         req.user.uid = 'local_classroom'
         req.request.mode = 's2t'
         req.request.source_language, req.request.target_language = LANGUAGES[mode]
+        if corpus:
+            req.request.corpus.hot_words_list.extend(corpus['hot_words_list'])
+            req.request.corpus.glossary_list.update(corpus['glossary_list'])
     if audio:
         req.source_audio.binary_data = audio
     return req.SerializeToString()

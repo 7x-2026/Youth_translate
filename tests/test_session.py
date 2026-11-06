@@ -149,3 +149,48 @@ async def test_prepare_without_valid_config_never_opens_a_cloud_connection():
         s.prepare();await asyncio.sleep(0);assert s.cloud_warmup.pending is None
         await s.end(immediate=True)
     assert calls==[]
+
+
+async def test_course_vocabulary_snapshot_survives_reconnect_and_refreshes_on_resume(tmp_path, monkeypatch):
+    import json
+    import backend.terminology as terminology
+    table = tmp_path / 'terms.json'
+    def save(word):
+        table.write_text(json.dumps(dict(hot_words=['音语舞'], zh_en={'音语舞':word}, en_zh={word:'音语舞'})), encoding='utf-8')
+    save('Eurythmy')
+    monkeypatch.setattr(terminology, 'COURSE_TERMINOLOGY', table)
+    clouds=[]
+    def connect(*a, **k):
+        cloud=FakeCloud();clouds.append(cloud);return cloud
+    async def emit(_):pass
+    s=Session(Settings(api_key='test-only',response_mode='snapshot'),emit,connect)
+    try:
+        s.prepare();await until(lambda:s.cloud_warmup.pending.done())
+        assert clouds[0].frames==[]
+        await s.start('auto');await until(lambda:s.state=='running')
+        assert clouds[0].frames[0].request.corpus.glossary_list['音语舞']=='Eurythmy'
+        save('Changed term')
+        # A real reconnect runs Session.connection again; reuse the validated snapshot.
+        await s.upstream.responses.put(TranslateResponse(event=E.SessionFinished).SerializeToString())
+        await until(lambda:len(clouds)==2 and s.state=='running')
+        assert clouds[1].frames[0].request.corpus.glossary_list['音语舞']=='Eurythmy'
+        table.unlink()  # Streaming audio must not read the file.
+        await s.audio(b'\0'*80)
+        await until(lambda:any(r.event==E.TaskRequest for r in clouds[1].frames))
+        assert not next(r for r in clouds[1].frames if r.event==E.TaskRequest).HasField('request')
+        save('Changed term')
+        await s.end(pause=True)
+        await s.start('en-zh',resume=True);await until(lambda:s.state=='running')
+        glossary=clouds[-1].frames[0].request.corpus.glossary_list
+        assert glossary['Changed term']=='音语舞' and '音语舞' not in glossary
+    finally:
+        await s.end(immediate=True)
+
+
+async def test_invalid_course_vocabulary_prevents_start_before_cloud_connect(tmp_path, monkeypatch):
+    import backend.terminology as terminology
+    monkeypatch.setattr(terminology, 'COURSE_TERMINOLOGY', tmp_path/'missing.json')
+    cloud=FakeCloud();s,_=setup(cloud)
+    with pytest.raises(RelayError) as error:await s.start()
+    assert error.value.code=='course_terminology'
+    assert not s.wanted and s.task is None and cloud.frames==[]

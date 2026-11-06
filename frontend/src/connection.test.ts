@@ -85,3 +85,20 @@ it('does not create duplicate warmups on a paused open socket',()=>{
   expect(ws.sent.filter(x=>JSON.parse(x).type==='prepare')).toHaveLength(1);
   client.cancelPrepare();expect(ws.readyState).toBe(3);
 });
+
+it('routes the optional dialect engine without changing standard transport',()=>{
+  const {client}=setup(false);client.setEngine('dialect');client.prepare(false);
+  const ws=Socket.instances[0];expect(ws.url).toBe('ws://localhost:8765/ws/translate?engine=dialect');
+  ws.open();expect(ws.sent.map(x=>JSON.parse(x).type)).toEqual(['heartbeat']);
+  client.start('auto',true);expect(JSON.parse(ws.sent.at(-1)).type).toBe('start');
+  expect(()=>client.setEngine('standard')).toThrow('暂停');
+  client.end(true);client.setEngine('standard');client.prepare();
+  expect(Socket.instances.at(-1)?.url).toBe('ws://localhost:8765/ws/translate');client.dispose();
+});
+it('retains dialect transport and epoch on reconnection',()=>{
+  const {client}=setup(false);client.setEngine('dialect');client.start('auto',true);
+  const first=Socket.instances[0];first.open();first.message({type:'status',state:'running',classId:'class',sessionEpoch:7});
+  first.close();vi.advanceTimersByTime(600);const next=Socket.instances[1];
+  expect(next.url).toContain('engine=dialect');next.open();expect(JSON.parse(next.sent[1]).sessionEpoch).toBe(7);
+  client.dispose();
+});

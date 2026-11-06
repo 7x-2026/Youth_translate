@@ -30,3 +30,12 @@ export function exportText(state:SubtitleState) {
   const entries=[...state.history,...Object.values(state.current).filter((e):e is Entry=>!!e&&!e.isFinal&&!!e.text).map(e=>({...e,unfinished:true}))];
   return entries.map(e=>`[${new Date(e.receivedAt).toLocaleTimeString()}] ${e.channel==='translation'?'译文':'原文'}${e.unfinished?'（未定稿）':''}\n${e.text}`).join('\n\n');
 }
+
+// Segment identity, not text or revision, distinguishes a previous utterance.
+export function previousTranslation(state:SubtitleState):Entry|undefined {
+  const current=state.current.translation;
+  for(let i=state.history.length-1;i>=0;i--){
+    const entry=state.history[i];
+    if(entry.channel==='translation'&&entry.text.trim()&&(!current||key(entry)!==key(current)))return entry;
+  }
+}

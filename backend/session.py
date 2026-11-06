@@ -8,6 +8,7 @@ from websockets.exceptions import InvalidStatus, ConnectionClosed
 from backend.protocol import E, LANGUAGES, RelayError, Normalizer, cloud_error, decode, request
 from backend.audio_diagnostics import AudioDiagnostics
 from backend.cloud_warmup import CloudWarmup
+from backend.terminology import load_course_corpus
 
 MAX_QUEUE_BYTES = 48000  # 1.5 s; browser reserves at most 0.5 s.
 
@@ -45,6 +46,7 @@ class Session:
         self.finish = asyncio.Event()
         self.finished = asyncio.Event()
         self.mode = 'auto'
+        self.corpus = None
         self.last_gap = 0
         self.tokens, self.token_time = 64000.0, time.monotonic()
         self.usage = []
@@ -70,6 +72,7 @@ class Session:
         if not self.settings.api_key: raise RelayError('not_configured', '尚未配置 VOLC_API_KEY。请编辑本机 .env 后重启服务。')
         if self.settings.api_key.startswith('ark-'): raise RelayError('wrong_key_type', '当前是火山方舟 ark- Key；同传接口需要豆包语音新版控制台的 API Key。')
         if self.settings.response_mode == 'unverified': raise RelayError('semantics_unverified', '官方协议已安装；请先运行协议探测，确认音频封装与字幕 Response 语义后配置 .env。')
+        self.corpus = load_course_corpus(mode)
         if not resume and self.state in ('idle', 'stopped', 'error', 'paused'):
             self.class_id, self.epoch, self.usage = class_id or str(uuid.uuid4()), epoch, []
         self.mode, self.wanted = mode, True
@@ -130,7 +133,7 @@ class Session:
         # Official Python Demo disables automatic Ping; no fabricated business heartbeat.
         async with self.cloud_warmup.connection() as ws:
             self.upstream = ws
-            await ws.send(request(session_id, E.StartSession, self.mode))
+            await ws.send(request(session_id, E.StartSession, self.mode, corpus=self.corpus))
             async with asyncio.timeout(15):
                 while True:
                     msg = decode(await ws.recv())

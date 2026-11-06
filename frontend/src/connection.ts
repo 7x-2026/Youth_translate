@@ -8,6 +8,12 @@ export class RelayClient {
   private attempt=0;
   private ack=0;
   private mode='auto';
+  private engine:'standard'|'dialect'='standard';
+  setEngine(engine:'standard'|'dialect'){
+    if(engine===this.engine)return;
+    if(this.wanted||this.preparing)throw Error('请先暂停课程再切换识别服务。');
+    this.dispose();this.engine=engine;
+  }
   private generation=0;
   private remotePaused=false;
   private preparing=false;
@@ -36,7 +42,7 @@ export class RelayClient {
   private connect() {
     const generation=++this.generation;
     this.status({type:'status',state:this.attempt?'recovering':'connecting',detail:'正在连接本机服务…'});
-    const ws=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/ws/translate`);
+    const ws=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/ws/translate${this.engine==='dialect'?'?engine=dialect':''}`);
     this.socket=ws;
     ws.binaryType='arraybuffer';
     ws.onopen=()=>{

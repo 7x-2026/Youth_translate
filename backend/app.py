@@ -11,10 +11,11 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from backend.config import ROOT, Settings
 from backend.protocol import RelayError
 from backend.session import Session
+from backend.dialect import DialectSession
 from backend.system_audio import SystemAudio, paced_audio, supported as system_audio_supported
 
 
-def create_app(settings=None, session_factory=Session, capture_factory=SystemAudio):
+def create_app(settings=None, session_factory=Session, capture_factory=SystemAudio, dialect_session_factory=DialectSession):
     config = settings or Settings.load()
     app = FastAPI(docs_url=None, redoc_url=None)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=['localhost', '127.0.0.1', 'testserver'])
@@ -24,7 +25,7 @@ def create_app(settings=None, session_factory=Session, capture_factory=SystemAud
 
     @app.get('/api/health')
     async def health():
-        return dict(status='ok', credentialsConfigured=bool(config.api_key), credentialSourceMismatch=config.api_key.startswith('ark-'), protocolInstalled=True, subtitleSemanticsVerified=config.response_mode != 'unverified', ready=bool(config.api_key) and not config.api_key.startswith('ark-') and config.response_mode != 'unverified', activeSessions=len(active), systemAudioSupported=system_audio_supported(), cloudWarmupSupported=True)
+        return dict(status='ok', credentialsConfigured=bool(config.api_key), credentialSourceMismatch=config.api_key.startswith('ark-'), protocolInstalled=True, subtitleSemanticsVerified=config.response_mode != 'unverified', ready=bool(config.api_key) and not config.api_key.startswith('ark-') and config.response_mode != 'unverified', activeSessions=len(active), systemAudioSupported=system_audio_supported(), cloudWarmupSupported=True, dialectConfigured=bool(config.dialect_configured), dialectSupported=True)
 
     @app.get('/api/audio-diagnostics')
     async def audio_diagnostics():
@@ -101,6 +102,10 @@ def create_app(settings=None, session_factory=Session, capture_factory=SystemAud
 
     @app.websocket('/ws/translate')
     async def translate(ws: WebSocket):
+        engine = ws.query_params.get('engine', 'standard')
+        if engine not in ('standard', 'dialect'):
+            await ws.close(code=1008)
+            return
         if ws.headers.get('origin') not in config.origins:
             await ws.close(code=1008)
             return
@@ -115,7 +120,7 @@ def create_app(settings=None, session_factory=Session, capture_factory=SystemAud
             send_lock = asyncio.Lock()
             async def emit(event):
                 async with send_lock: await asyncio.wait_for(ws.send_json(event), 2)
-            session = session_factory(config, emit)
+            session = (dialect_session_factory if engine == 'dialect' else session_factory)(config, emit)
             sessions.add(session)
             await session.status('idle', '本机服务已连接')
             last_heartbeat = time.monotonic()

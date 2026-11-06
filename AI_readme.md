@@ -187,3 +187,12 @@ npm --prefix frontend run build
 ```
 
 构建完成后刷新网页；若仍显示旧版界面，可尝试强制刷新。
+
+
+## 2026-10-31：可选方言识别链路
+
+默认 `/ws/translate` 继续创建 `Session`，只有 `/ws/translate?engine=dialect` 创建 `backend.dialect.DialectSession`。两者共享 Origin、单会话和音频大小/限流检查；不会双路上传音频。前端识别服务仅在未运行/暂停时切换，运行中切换设备仍沿用原有采集生命周期。ASR 为腾讯云 `16k_zh_en`，服务端合并成 200ms PCM16 包（短尾保留），定稿句交给 TokenHub `hy-mt2-lite`。不要恢复已退市的 TMT TextTranslate 接口或替换成仅支持短输入的 Preview ASR。
+
+腾讯配置只在 `Settings` 的可选字段与环境变量中读取；health 仅返回 `dialectConfigured`/`dialectSupported` 布尔值，不返回密钥，也不表示云端权限已验证。新路径继承音频队列、结束 5 秒期限；翻译队列最多 4 句，积压提示缺口。取消后不发送迟到结果，已开始的线程内 HTTP 请求仍可能在 8 秒网络超时内结束，不可宣称可撤销云端费用。
+
+`tests/test_dialect.py` 和 `connection.test.ts` 覆盖签名、配置缺失、路由隔离、按句翻译、幂等定稿、队列上限、暂停/停止/恢复与取消。没有凭证/真实口音样本时，不声称真实云端、河南话或鄂西北口音识别已验收。不得把测试替身字幕作为产品翻译结果。
