@@ -1,10 +1,9 @@
 from dataclasses import dataclass, field
-from pathlib import Path
 import os
 from dotenv import load_dotenv
+from backend.runtime import ROOT, configuration_path
 
-ROOT = Path(__file__).resolve().parents[1]
-load_dotenv(ROOT / '.env')
+load_dotenv(configuration_path())
 
 @dataclass(frozen=True)
 class Settings:

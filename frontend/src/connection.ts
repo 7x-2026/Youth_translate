@@ -1,4 +1,5 @@
-export type Status = {type:'status';state:string;detail?:string;classId?:string;sessionEpoch?:number;gap?:boolean};
+import type {RecordStatus} from './records';
+export type Status = {type:'status';state:string;detail?:string;classId?:string;sessionEpoch?:number;gap?:boolean;record?:RecordStatus};
 export class RelayClient {
   socket?: WebSocket;
   wanted=false;

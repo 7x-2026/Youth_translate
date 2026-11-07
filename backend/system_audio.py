@@ -3,6 +3,7 @@ import asyncio
 import json
 import os
 import platform
+import subprocess
 import sys
 import time
 from contextlib import suppress
@@ -116,7 +117,8 @@ class SystemAudio:
                     await stop_process(builder)
             command = [str(BINARY)]
         else:
-            command = [sys.executable, '-u', '-m', 'backend.windows_audio']
+            command = ([sys.executable, '--audio-worker'] if getattr(sys, 'frozen', False)
+                       else [sys.executable, '-u', '-m', 'backend.windows_audio'])
         return command
 
     async def spawn(self, args):
@@ -134,7 +136,8 @@ class SystemAudio:
             if key.casefold() in keep_folded
         }
         environment['PYTHONIOENCODING'] = 'utf-8'
-        self.process = await asyncio.create_subprocess_exec(*command, *args, cwd=ROOT, env=environment,
+        options = {'creationflags': getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000)} if sys.platform == 'win32' else {}
+        self.process = await asyncio.create_subprocess_exec(*command, *args, cwd=ROOT, env=environment, **options,
             stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.DEVNULL, limit=16000)
 

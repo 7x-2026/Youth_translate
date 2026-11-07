@@ -32,17 +32,23 @@ def capture(soundcard, numpy, output, device_id=None):
             output.flush()
 
 
-if __name__ == '__main__':
+def main(argv=None):
     try:
         import soundcard
         import numpy
         parser = argparse.ArgumentParser()
         parser.add_argument('--list', action='store_true')
         parser.add_argument('--device')
-        args = parser.parse_args()
+        args = parser.parse_args(argv)
         if args.list:
-            print(json.dumps(outputs(soundcard), ensure_ascii=False))
+            sys.stdout.buffer.write((json.dumps(outputs(soundcard), ensure_ascii=False) + '\n').encode('utf-8'))
+            sys.stdout.buffer.flush()
         else:
             capture(soundcard, numpy, sys.stdout.buffer, args.device)
+        return 0
     except (Exception, KeyboardInterrupt):
-        sys.exit(2)
+        return 2
+
+
+if __name__ == '__main__':
+    sys.exit(main())

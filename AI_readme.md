@@ -6,6 +6,12 @@
 
 这是**本机网页 + 本机 Python 中继 + 火山引擎云端 AST S2T**，并非离线翻译或纯前端站点。普通使用先 `npm --prefix frontend run build`，再在根目录运行 `uv run --locked python -m backend`，打开 `http://localhost:8765`。`npm --prefix frontend run dev` 只启动 Vite 开发服务器；使用开发模式时还要另开终端运行 Python 后端，访问 `http://localhost:5173`。
 
+Windows EXE 构建入口见 [WINDOWS_BUILD.md](WINDOWS_BUILD.md)：`desktop_launcher.py` 提供首次配置、打开本机网页和退出；`packaging/windows.spec` 显式收集前端/词表与音频依赖。打包后音频子进程使用同一 EXE 的 `--audio-worker` 入口，不能继续以 `sys.executable -m backend.windows_audio` 启动。打包配置和课程数据库放在用户数据目录，开发态仍读项目 `.env`；不得把真实 `.env` 或课程数据库打进资源。
+
+`backend/records.py` 用 SQLite 持续保存已归一化的字幕快照（含未定稿），原文与译文分开记录。`app.py` 在字幕发给页面前提交事务，给状态/字幕附加 `record` 保存状态；磁盘写入放在线程中，不在音频包路径读写数据库。课程按本机日期与当天序号命名为 `YYYY-MM-DD-001`，以 classId 复用暂停/继续/重连的同一记录。按 epoch/channel/segmentId 和 revision 去重，已定稿文本不会被迟到片段覆盖。保存失败仍发送实时字幕，并明确提示手动导出；后续写入将课程标记可能不完整。
+
+开发态数据库位于 `.local/records.sqlite3`；EXE 位于 `%LOCALAPPDATA%\ClassroomInterpreter\records.sqlite3`，不随临时解压目录销毁。`GET /api/records` 分页列出课程，`GET /api/records/{id}` 查看内容，`GET /api/records/{id}/export` 下载带 UTF-8 BOM 的 TXT。接口拒绝跨站 Origin/Fetch Metadata，响应不缓存；不输出凭证和磁盘路径。`frontend/src/records.tsx` 提供历史课程、详情和导出，后台 health 声明 `recordsSupported`；旧后台会提示重启，不能冒称已保存。仅收到并成功提交的文字受到持久化保障，不能恢复云端未返回的末句。
+
 数据流：麦克风用浏览器 `getUserMedia` → `AudioWorklet` → 连续重采样为 16kHz PCM16；扬声器 / 耳机用本机原生采集 → `/ws/system-audio` → 浏览器 `SystemCapture` 分包。两者再共用本机 `/ws/translate` → `backend.session.Session` → 官方 AST WSS / Protobuf → `backend.protocol.Normalizer` → 浏览器原文、译文与历史状态。云端只返回文字，不请求或播放合成语音。
 
 2026-10-20 扩展范围：用户要求 Windows / macOS 读取会议输出、保持原播放、不共享屏幕，且只用一个设备选择框。`/api/audio-outputs` 枚举原生输出设备名称与 ID；UI 按输入/输出分组，输出项只用硬件原名。`AudioSource` 的设备 ID 决定实际采集端点，不改变系统默认设备。不要恢复 `getDisplayMedia` 方案，也不要把输出设备 ID 当作浏览器麦克风 ID。
@@ -39,7 +45,7 @@ Windows 的 `backend.windows_audio` 子进程使用 SoundCard WASAPI 的所选�
 | `scripts/probe.py`、`smoke_relay.py` | 真实云端协议探测与本机中继联调；会发送测试音频到云端 |
 | `frontend/src/*.test.ts`、`tests/` | 自动回归；真实环境覆盖情况见 `tests/ACCEPTANCE.md` |
 
-必须保持的约束：密钥只在根目录 `.env` 和 Python 进程中，绝不进入 `frontend/dist`、日志、测试夹具或聊天；`.env.example` 不含密钥。后端只监听 `127.0.0.1`，WebSocket 只接受明确的 localhost Origin，且只允许一条活跃本机会话。已发音频不重放；超限队列产生缺口提示，不伪装成完整字幕。浏览器字幕在内存，只有用户主动导出才保存 TXT。不要用模拟数据充当产品翻译结果。
+必须保持的约束：密钥只在本机 `.env`/用户配置和 Python 进程中，绝不进入 `frontend/dist`、EXE 资源、日志、测试夹具或聊天；`.env.example` 不含密钥。后端只监听 `127.0.0.1`，WebSocket 只接受明确的 localhost Origin，且只允许一条活跃本机会话。已发音频不重放；超限队列产生缺口提示，不伪装成完整字幕。课程文字自动存入本地数据库；不保存音频，不将用户数据库提交到 Git 或打入 EXE。不要用模拟数据充当产品翻译结果。
 
 当前官方接口已用真实短音频验证：`TaskRequest.source_audio.binary_data` 为无头 PCM；`Response` 是 **delta**，`End` 是完整段；`response_meta.Sequence` 是段 ID，多个 Response 会共享它，不能把它当全局消息序号去重。原文和译文分别定稿。`AudioMuted` 是云端暂未检测到语音，不能解释为电脑静音。改动协议、资源或模型版本时先重新真实探测，再决定 `.env` 中 `VOLC_SUBTITLE_RESPONSE_MODE`；样例故意保持 `unverified` 防止把未知版本直接投入使用。
 
@@ -104,7 +110,7 @@ uv run python -m scripts.probe short-test.wav --container pcm --show-text --save
 
 默认 80ms；可以用 `--packet-ms 40` 对照。方向支持 `--mode auto`、`zh-en`、`en-zh`。已用官方 Demo 附带的短 WAV 验证 `--container pcm` 成功；`--container wav` 仅供协议对照。浏览器生产链路使用无头 PCM。
 
-检查同一段多个 Response：如果每次是新片段则为 `delta`，如果是该段截至当前的完整文本则为 `snapshot`；同时确认 End 提供完整段、原文/译文事件、时间戳、末句收尾、计量与没有音频输出。`--show-text` 仅显式打印短测试音频文本；服务本身不记录课程文本。`--save-redacted` 保存字符替换后的样本到忽略目录 `.local/`，保留前缀/相等关系，不保存原始音频或原始文本。
+检查同一段多个 Response：如果每次是新片段则为 `delta`，如果是该段截至当前的完整文本则为 `snapshot`；同时确认 End 提供完整段、原文/译文事件、时间戳、末句收尾、计量与没有音频输出。`--show-text` 仅显式打印短测试音频文本；正式课程的自动保存由本机服务负责。`--save-redacted` 保存字符替换后的协议样本到忽略目录 `.local/`，保留前缀/相等关系，不保存探测音频或原始文本。
 
 本次真实样本已确认 **PCM 分支、S2T、zhen 和增量字幕**，当前 `.env` 已设置：
 
@@ -117,13 +123,13 @@ VOLC_SUBTITLE_RESPONSE_MODE=delta
 
 ## 页面行为
 
-- 点击“开始课程”后申请麦克风，等待上游 SessionStarted 才开始采集上传。麦克风默认“电脑内置优先 · 自动”：优先识别 Mac/Windows 内置输入，仍可从下拉框手动选择 iPhone、USB 等设备；页面显示实际使用的输入源。首次授权前浏览器可能隐藏设备名称，获准后会重新识别，再上传音频。若无法识别内置设备或只能使用系统默认，会提示核对输入源。自动翻译模式中英逐语种反转；混合输入可以输出混合译文。输入设备可运行中切换；方向/收音方式/包长在暂停后切换，继续时新建会话。
-- “云端等待语音”表示上游暂未判定出语音，麦克风仍在采集；它不表示电脑静音。麦克风输入条按近 100ms 的完整窗口统计，并用 dBFS 显示弱信号。远距离课堂可选“教室 · 远距离”，关闭浏览器降噪与回声消除，保留自动增益；环境噪声也可能更明显。更可靠的做法是在授课位置使用近距离外接麦克风。
-- 80ms 为默认，40ms 是实验选项。实际采样率经连续低通 FIR 和重采样转换为 16kHz PCM16，小端二进制传输；自然停顿仍传真实静音。
+- 点击“开始课程”后申请麦克风，等待上游 SessionStarted 才开始采集上传。麦克风默认“电脑内置优先 · 自动”：优先识别 Mac/Windows 内置输入，仍可从下拉框手动选择 iPhone、USB 等设备；页面显示实际使用的输入源。首次授权前浏览器可能隐藏设备名称，获准后会重新识别，再上传音频。若无法识别内置设备或只能使用系统默认，会提示核对输入源。自动翻译模式中英逐语种反转；混合输入可以输出混合译文。输入设备可运行中切换；翻译方向在暂停后切换，继续时新建会话。前端已移除识别服务、收音方式和包长控件，固定使用豆包标准同传、标准近讲收音和 80ms 分包。
+- “云端等待语音”表示上游暂未判定出语音，麦克风仍在采集；它不表示电脑静音。麦克风输入条按近 100ms 的完整窗口统计，并用 dBFS 显示弱信号。标准收音开启浏览器降噪、回声消除和自动增益；远距离课堂可在授课位置使用近距离外接麦克风。
+- 页面固定使用 80ms 分包，底层保留 40ms 支持供开发对照。实际采样率经连续低通 FIR 和重采样转换为 16kHz PCM16，小端二进制传输；自然停顿仍传真实静音。
 - 译文中间结果直接显示，原文独立更新；分别定稿归档，不等待配对。字号 28–80px，支持全屏、原文开关；向上滚动停止跟随，点击“回到最新”恢复。
 - 暂停停止采集并释放麦克风，结束上游。继续保留历史并增加会话 epoch。结束先上传最后短包，发送 FinishSession，最多等 5 秒；未完成段显示“未定稿”。
 - 常亮失败不会阻断翻译；前台恢复会按运行状态重新申请。设备中断提示重新选择并继续；AudioContext 暂停时尝试恢复。系统锁屏/休眠或后台冻结时不能保证持续采音。
-- 历史只存在当前页面内存，不写入浏览器存储；默认不保存音频或课程文本。TXT 需用户主动导出。刷新结束会话并清空记录，运行中有离开提示。
+- 课程文字在本机 SQLite 自动保存，按日期和当天序号命名，浏览器存储不承担持久化。刷新/关页结束当前采集，但已保存记录可从“历史课程”查看和导出 TXT；未定稿文字保留并标注。不保存音频，保存失败明确提示。
 - 本机连接每 10 秒应用心跳、30 秒无确认重连；云端网络失败按 0.5/1/2/4/8/最大10秒加抖动重试。明确鉴权、参数、额度及未知业务错误停止重试并提示检查；不会回放已发送音频。
 - 浏览器待发数据最多 16KB（0.5 秒），中继队列最多 48KB（1.5 秒），另有一个正在发送的包和底层网络缓冲。超过限制丢弃未发送旧音频或重建连接，并提示缺口；断网不能保证不漏内容。
 - 仅允许明确的 localhost/127.0.0.1 Origin，限制一条活跃本机连接、控制帧/音频帧大小和上传速率。重复开始不会创建并行收费会话。云端 WSS，密钥只在服务端。
@@ -191,7 +197,7 @@ npm --prefix frontend run build
 
 ## 2026-10-31：可选方言识别链路
 
-默认 `/ws/translate` 继续创建 `Session`，只有 `/ws/translate?engine=dialect` 创建 `backend.dialect.DialectSession`。两者共享 Origin、单会话和音频大小/限流检查；不会双路上传音频。前端识别服务仅在未运行/暂停时切换，运行中切换设备仍沿用原有采集生命周期。ASR 为腾讯云 `16k_zh_en`，服务端合并成 200ms PCM16 包（短尾保留），定稿句交给 TokenHub `hy-mt2-lite`。不要恢复已退市的 TMT TextTranslate 接口或替换成仅支持短输入的 Preview ASR。
+默认 `/ws/translate` 继续创建 `Session`，只有 `/ws/translate?engine=dialect` 创建 `backend.dialect.DialectSession`。两者共享 Origin、单会话和音频大小/限流检查；不会双路上传音频。当前前端已移除识别服务选择，统一使用标准同传，方言后端与 `RelayClient.setEngine` 保留供开发调试；运行中切换设备仍沿用原有采集生命周期。ASR 为腾讯云 `16k_zh_en`，服务端合并成 200ms PCM16 包（短尾保留），定稿句交给 TokenHub `hy-mt2-lite`。不要恢复已退市的 TMT TextTranslate 接口或替换成仅支持短输入的 Preview ASR。
 
 腾讯配置只在 `Settings` 的可选字段与环境变量中读取；health 仅返回 `dialectConfigured`/`dialectSupported` 布尔值，不返回密钥，也不表示云端权限已验证。新路径继承音频队列、结束 5 秒期限；翻译队列最多 4 句，积压提示缺口。取消后不发送迟到结果，已开始的线程内 HTTP 请求仍可能在 8 秒网络超时内结束，不可宣称可撤销云端费用。
 
