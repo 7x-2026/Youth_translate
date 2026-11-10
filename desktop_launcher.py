@@ -61,6 +61,9 @@ def self_test():
     index = ROOT / 'frontend/dist/index.html'
     if not index.is_file() or not list((index.parent / 'assets').glob('*.js')):
         raise RuntimeError('Bundled frontend assets are missing')
+    for name in ('academy-logo.png','academy-launcher.png','academy.ico'):
+        if not (index.parent/'assets'/name).is_file():
+            raise RuntimeError('Bundled academy logo is missing')
     for mode in ('auto', 'zh-en', 'en-zh'):
         load_course_corpus(mode)
     with sqlite3.connect(':memory:') as connection:
@@ -122,7 +125,16 @@ def smoke_test():
             with opener.open(base + asset, timeout=5) as response:
                 if not response.read():
                     raise RuntimeError('Empty frontend resource')
-        return {'smokeTest': 'ok', 'assets': len(assets), 'cloudSessions': 0}
+        result = {'smokeTest': 'ok', 'assets': len(assets), 'cloudSessions': 0}
+        if sys.platform == 'win32':
+            # Import checks alone miss failures in the frozen worker's startup
+            # environment and timeout. Enumerating devices does not record audio.
+            with opener.open(base + '/api/audio-outputs', timeout=45) as response:
+                devices = json.load(response)['devices']
+            if not isinstance(devices, list):
+                raise RuntimeError('Invalid audio output list')
+            result['audioOutputs'] = len(devices)
+        return result
     finally:
         server.should_exit = True
         thread.join(12)
@@ -134,7 +146,7 @@ def smoke_test():
 
 
 
-PALETTE = dict(bg='#f4f7f2', card='#ffffff', line='#dce5dc', text='#213a31', muted='#63766b', accent='#2c6851')
+PALETTE = dict(bg='#f5f1e9', card='#fffdf8', line='#e4ded1', text='#303d36', muted='#807f72', accent='#456950')
 
 
 def prepare_window(root, width, height):
@@ -143,16 +155,26 @@ def prepare_window(root, width, height):
     x=max(0, (root.winfo_screenwidth()-width)//2)
     y=max(0, (root.winfo_screenheight()-height)//2)
     root.geometry(f'{width}x{height}+{x}+{y}')
+    from backend.runtime import ROOT
+    icon = ROOT/'frontend/dist/assets/academy.ico'
+    if icon.is_file():
+        root.iconbitmap(str(icon))
 
 
 def brand_header(parent, subtitle):
     import tkinter as tk
+    from backend.runtime import ROOT
     p=PALETTE
     frame=tk.Frame(parent, bg=p['bg'])
-    frame.pack(fill='x', padx=30, pady=(26,18))
-    tk.Label(frame, text='青 衿  /  CLASSROOM', fg=p['accent'], bg=p['bg'], font=('Microsoft YaHei UI',9)).pack(anchor='w')
-    tk.Label(frame, text='让语言跟上课堂。', fg=p['text'], bg=p['bg'], font=('Microsoft YaHei UI',23,'bold')).pack(anchor='w', pady=(10,6))
-    tk.Label(frame, text=subtitle, fg=p['muted'], bg=p['bg'], font=('Microsoft YaHei UI',10)).pack(anchor='w')
+    frame.pack(fill='x', padx=32, pady=(20,20))
+    logo_path=ROOT/'frontend/dist/assets/academy-launcher.png'
+    if logo_path.is_file():
+        logo=tk.PhotoImage(file=str(logo_path))
+        label=tk.Label(frame, image=logo, bg=p['bg'], bd=0)
+        label.image=logo
+        label.pack(pady=(0,10))
+    tk.Label(frame, text='课堂同传', fg=p['text'], bg=p['bg'], font=('Microsoft YaHei UI',22)).pack(pady=(0,9))
+    tk.Label(frame, text=subtitle, fg=p['muted'], bg=p['bg'], font=('Microsoft YaHei UI',10)).pack()
 
 
 def ui_button(parent, text, command, primary=False):
@@ -202,8 +224,8 @@ def request_api_key(root):
     p=PALETTE
     dialog=tk.Toplevel(root)
     dialog.title('青衿学院课堂同传 · 首次设置')
-    prepare_window(dialog, 440, 540)
-    brand_header(dialog, '首次使用  /  连接你的豆包语音服务')
+    prepare_window(dialog, 440, 650)
+    brand_header(dialog, '首次设置')
     body=tk.Frame(dialog, bg=p['bg']);body.pack(fill='both', expand=True, padx=30)
     tk.Label(body, text='豆包语音 API Key', fg=p['text'], bg=p['bg'],font=('Microsoft YaHei UI',11,'bold')).pack(anchor='w', pady=(0,9))
     entry=tk.Entry(body, show='●', bg=p['card'], fg=p['text'], insertbackground=p['accent'], relief='flat', font=('Microsoft YaHei UI',12), highlightthickness=1, highlightbackground=p['line'], highlightcolor=p['accent'])
@@ -217,7 +239,7 @@ def request_api_key(root):
         if not value or value.startswith('ark-') or any(c in value for c in '\r\n\0'):
             error.set('请输入有效的豆包语音 Key，不能使用 ark- Key。');return
         result[0]=value;dialog.destroy()
-    ui_button(body,'保存并进入课堂  →',submit,True).pack(fill='x',pady=(12,0))
+    ui_button(body,'保存并进入课堂',submit,True).pack(fill='x',pady=(12,0))
     dialog.bind('<Return>',lambda _event:submit())
     dialog.protocol('WM_DELETE_WINDOW',dialog.destroy)
     dialog.grab_set();entry.focus_set();root.wait_window(dialog)
@@ -227,16 +249,15 @@ def request_api_key(root):
 def build_launcher_ui(root, status, open_classroom, close):
     import tkinter as tk
     p=PALETTE
-    prepare_window(root, 420, 600)
-    brand_header(root, '青衿学院课堂同传  /  中文 ⇄ English')
+    prepare_window(root, 420, 640)
+    brand_header(root, '中文与英文，实时字幕')
     card=tk.Frame(root,bg=p['card'],highlightbackground=p['line'],highlightthickness=1)
     card.pack(fill='x',padx=30,pady=(0,16))
     tk.Label(card,text='●  本机课堂服务',fg=p['accent'],bg=p['card'],font=('Microsoft YaHei UI',10,'bold')).pack(anchor='w',padx=18,pady=(16,7))
     tk.Label(card,textvariable=status,fg=p['text'],bg=p['card'],font=('Microsoft YaHei UI',10),wraplength=315,justify='left',height=3,anchor='nw').pack(fill='x',padx=18,pady=(0,12))
     body=tk.Frame(root,bg=p['bg']);body.pack(fill='x',padx=30)
-    ui_button(body,'打开课堂  →',open_classroom,True).pack(fill='x')
-    tk.Label(body,text='首次使用麦克风\n进入课堂后点击“授权并试音”。\n在浏览器中选择允许，确认电平后再开始课程。',fg=p['muted'],bg=p['bg'],font=('Microsoft YaHei UI',9),justify='left',wraplength=350).pack(anchor='w',pady=(16,18))
-    ui_button(body,'退出程序',close).pack(fill='x')
+    ui_button(body,'打开课堂',open_classroom,True).pack(fill='x')
+    ui_button(body,'退出程序',close).pack(fill='x',pady=(12,0))
     tk.Label(root,text='本机保存课程文字  ·  不保存录音  ·  翻译依赖网络',fg=p['muted'],bg=p['bg'],font=('Microsoft YaHei UI',8)).pack(side='bottom',pady=14)
 
 

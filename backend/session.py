@@ -2,6 +2,7 @@ import asyncio
 import random
 import time
 import uuid
+from collections import deque
 from contextlib import suppress
 import websockets
 from websockets.exceptions import InvalidStatus, ConnectionClosed
@@ -10,7 +11,14 @@ from backend.audio_diagnostics import AudioDiagnostics
 from backend.cloud_warmup import CloudWarmup
 from backend.terminology import load_course_corpus
 
-MAX_QUEUE_BYTES = 48000  # 1.5 s; browser reserves at most 0.5 s.
+MAX_QUEUE_BYTES = 16000  # At most 0.5 s of unsent audio; always prefer live input.
+
+
+def next_audio_deadline(previous, sent_at, duration):
+    """Compensate small sleep jitter by at most 10%; don't replay long stalls."""
+    lateness = max(0, sent_at-previous)
+    correction = min(lateness, duration*.1) if lateness < duration/2 else 0
+    return sent_at+duration-correction
 
 class AudioQueue:
     def __init__(self):
@@ -49,6 +57,7 @@ class Session:
         self.corpus = None
         self.last_gap = 0
         self.tokens, self.token_time = 64000.0, time.monotonic()
+        self.rate_overruns = deque()
         self.usage = []
         self.audio_diagnostics=AudioDiagnostics()
         self.cloud_warmup=CloudWarmup(self.new_connection)
@@ -78,6 +87,7 @@ class Session:
         self.mode, self.wanted = mode, True
         self.queue.clear()
         self.tokens, self.token_time = 64000.0, time.monotonic()
+        self.rate_overruns.clear()
         self.task = asyncio.create_task(self.run())
 
     async def gap(self, detail):
@@ -92,7 +102,18 @@ class Session:
         now = time.monotonic()
         self.tokens = min(64000, self.tokens + (now-self.token_time)*40000)
         self.token_time = now
-        if len(packet) > self.tokens: raise RelayError('rate_limit', '音频上传超过允许速率。')
+        if len(packet) > self.tokens:
+            # A brief browser/IPC burst is a gap, not a fatal session error.
+            # Retain a hard ceiling for sustained abusive input.
+            while self.rate_overruns and now-self.rate_overruns[0]>=2:
+                self.rate_overruns.popleft()
+            self.rate_overruns.append(now)
+            self.audio_diagnostics.rate_dropped_bytes += len(packet)
+            self.queue.clear()
+            if len(self.rate_overruns)>125:
+                raise RelayError('rate_limit', '音频持续超过允许速率，请暂停后重新选择输入设备。')
+            await self.gap('已跳过突发积压音频，期间字幕可能存在缺口。')
+            return
         self.tokens -= len(packet)
         self.audio_diagnostics.receive(packet)
         if self.queue.push(packet): await self.gap('音频积压：已丢弃最旧的未发送音频，字幕可能存在缺口。')
@@ -155,10 +176,14 @@ class Session:
                 await asyncio.gather(sender, receiver, return_exceptions=True)
 
     async def sender(self, ws, session_id):
+        next_send = time.monotonic()
         while not self.finish.is_set() or not self.queue.items.empty():
             try: packet = await asyncio.wait_for(self.queue.get(), .08)
             except TimeoutError: continue
+            await asyncio.sleep(max(0, next_send-time.monotonic()))
+            sent_at = time.monotonic()
             await asyncio.wait_for(ws.send(request(session_id, E.TaskRequest, audio=packet)), 2)
+            next_send = next_audio_deadline(next_send, sent_at, len(packet)/32000)
             self.audio_diagnostics.send(packet)
         await ws.send(request(session_id, E.FinishSession))
 

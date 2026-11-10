@@ -1,22 +1,23 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Capture } from './capture';
-import {MicrophoneCheck} from './microphone-check';
 import { SystemCapture } from './system-capture';
 import { replaceCapture } from './switch-capture';
 import { AudioProgress } from './audio-progress';
 import { audioSources, resolveAudioSource, type AudioOutput } from './input';
 import { displayLevel } from './audio';
 import { RelayClient, type Status } from './connection';
-import { initialSubtitles, transition, applySubtitle, markUnfinished, exportText, previousTranslation, type SubtitleState } from './subtitles';
+import { initialSubtitles, transition, applySubtitle, markUnfinished, exportText, type SubtitleState } from './subtitles';
+import {useReadableTranslation} from './use-readable-translation';
+import {TranslationLyrics} from './translation-lyrics';
 import {SavedCourses,type RecordStatus} from './records';
-import './style.css';
+import './warm.css';
 type Health={credentialsConfigured:boolean;credentialSourceMismatch:boolean;subtitleSemanticsVerified:boolean;ready:boolean;cloudWarmupSupported?:boolean;recordsSupported?:boolean};
 const labels:Record<string,string>={idle:'准备就绪',connecting:'正在连接',running:'正在翻译',muted:'云端等待语音',recovering:'正在恢复',finishing:'正在收尾',paused:'已暂停',stopped:'已结束',error:'需要处理'};
 function assertReady(h:Health){
   if(!h.ready)throw Error(!h.credentialsConfigured?'请先在 .env 配置 VOLC_API_KEY，然后重启服务。':h.credentialSourceMismatch?'当前是火山方舟 ark- Key；请换为豆包语音新版控制台的 API Key。':'请先运行协议探测，确认音频封装及字幕语义，再设置 VOLC_SUBTITLE_RESPONSE_MODE。');
 }
-const DEFAULT_FONT_SIZE=48, DEFAULT_FONT_COLOR='#ffffff';
+const DEFAULT_FONT_SIZE=48, DEFAULT_FONT_COLOR='#23493d';
 const DEFAULT_PACKET_MS=80;
 const MIN_FONT_SIZE=16, MAX_FONT_SIZE=64, FONT_STEP=2, FONT_SIZE_GAP=12;
 type DisplaySettings={fontSize:number|null;fontColor:string|null};
@@ -36,14 +37,13 @@ function App(){
   const [outputs,setOutputs]=useState<AudioOutput[]>([]);
   const [input,setInput]=useState('auto');const [mode,setMode]=useState('auto');
   const systemAudio=input==='system'||input.startsWith('system:');
-  const [micChecking,setMicChecking]=useState(false);
-  const [micRaw,setMicRaw]=useState(false);
-  const [micToolsOpen,setMicToolsOpen]=useState(false);
+  const micRaw=false;
   const [display,setDisplay]=useState<DisplaySettings>(readDisplaySettings);
   const font=display.fontSize??DEFAULT_FONT_SIZE;
   const subtitleStyle={color:display.fontColor??undefined};
   const [source,setSource]=useState(true);
   const stage=useRef<HTMLElement>(null);
+  const normalTranslation=useRef<HTMLDivElement>(null),normalSource=useRef<HTMLParagraphElement>(null);
   const [subtitleFullscreen,setSubtitleFullscreen]=useState(false);
   const [fullscreenHint,setFullscreenHint]=useState('');
   useEffect(()=>{
@@ -86,7 +86,7 @@ function App(){
   },[speechSupported]);
   function speakTranslation(){
     if(utterance.current){stopSpeech();return;}
-    const text=subtitles.current.translation?.text.trim();
+    const text=readable.current?.text.trim();
     if(!text||!speechSupported)return;
     setSpeechHint('');
     try{
@@ -129,6 +129,8 @@ function App(){
   const [message,setMessage]=useState('');const [wakeStatus,setWakeStatus]=useState('未申请');
   const [activeInput,setActiveInput]=useState('');const [inputWarning,setInputWarning]=useState('');
   const [subtitles,setSubtitles]=useState<SubtitleState>(initialSubtitles);
+  const readable=useReadableTranslation(subtitles.current.translation,subtitles.classId,subtitles.epoch,
+    ['connecting','running','muted','recovering','finishing'].includes(status.state));
   const [record,setRecord]=useState<RecordStatus>();
   const [recordsRevision,setRecordsRevision]=useState(0);
   const currentRecord=useRef('');
@@ -196,6 +198,7 @@ function App(){
         if(!msg.retryable)receiveStatus({type:'status',state:'error',detail:msg.message});
       }
     },receiveStatus);
+    client.current.onAudioSent=buffer=>audioProgress.current.packet(buffer,true);
     void refreshHealth();void refreshDevices();void refreshOutputs();
     const visibility=()=>{if(document.visibilityState==='visible'){void requestWake();void refreshHealth();void refreshOutputs();}};
     const deviceChange=()=>{void refreshDevices();void refreshOutputs();};
@@ -213,7 +216,7 @@ function App(){
   function createCapture(value:string,revision:number){
     const CaptureClass=resolveAudioSource(value).kind==='system'?SystemCapture:Capture;
     const current=()=>captureRevision.current===revision;
-    const c=new CaptureClass(buffer=>{if(current())audioProgress.current.packet(buffer,client.current?.audio(buffer)===true);},level=>{if(current())setMeter(level);},detail=>{
+    const c=new CaptureClass(buffer=>{if(current()){audioProgress.current.packet(buffer,false);client.current?.audio(buffer);}},level=>{if(current())setMeter(level);},detail=>{
       if(!current())return;
       setMessage(detail);void c.close();client.current?.end(true);receiveStatus({type:'status',state:'paused',detail});
     });
@@ -227,6 +230,7 @@ function App(){
     setBusy(true);setSwitching(true);setMessage('');setMeter(0);
     audioProgress.current.reset();setAudioHint('');
     const controller=new AbortController();switchingAbort.current=controller;
+    client.current?.discardAudio();
     const previous=capture.current;capture.current=undefined;
     const revision=++captureRevision.current;
     const next=createCapture(value,revision);pendingCapture.current=next;
@@ -234,6 +238,7 @@ function App(){
       await replaceCapture({previous,next,source:resolveAudioSource(value),packetMs:DEFAULT_PACKET_MS,roomMode:micRaw,signal:controller.signal,
         silence:packet=>{if(active.current&&['running','muted'].includes(stateRef.current))client.current?.audio(packet);},
         ready:actual=>{
+          client.current?.discardAudio();
           audioProgress.current.reset();setAudioHint('');
           capture.current=next;pendingCapture.current=undefined;
           next.enable(['running','muted'].includes(stateRef.current));
@@ -252,7 +257,7 @@ function App(){
     }
   }
   async function begin(fresh:boolean){
-    if(busy||micChecking)return;setBusy(true);setMessage('');
+    if(busy)return;setBusy(true);setMessage('');
     const controller=new AbortController();startupAbort.current=controller;
     receiveStatus({type:'status',state:'connecting',detail:'正在准备音频设备与翻译连接…'});
     try{
@@ -288,16 +293,26 @@ function App(){
       controller?.abort();if(controller)++captureRevision.current;
       setSwitching(false);await pendingCapture.current?.close();
       // Flush is delivered before stop, while upload is still accepted.
-      await capture.current?.close(!pause);active.current=false;setMeter(0);await releaseWake();
+      await capture.current?.close(!pause);
+      if(!pause)await client.current?.drainAudio();
+      active.current=false;setMeter(0);await releaseWake();
       receiveStatus({type:'status',state:'finishing',detail:'正在接收最后字幕（最多 5 秒）…'});client.current?.end(pause);
     }finally{setBusy(false);}
   }
   function download(){const blob=new Blob(['\ufeff'+exportText(subtitles)],{type:'text/plain;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`${record?.name??'课堂字幕'}.txt`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
   const running=['connecting','running','muted','recovering'].includes(status.state);
+  useEffect(()=>{if(systemAudio&&running)stopSpeech();},[systemAudio,running]);
   const locked=running||busy||status.state==='finishing';
   const time=`${String(Math.floor(elapsed/3600)).padStart(2,'0')}:${String(Math.floor(elapsed/60)%60).padStart(2,'0')}:${String(elapsed%60).padStart(2,'0')}`;
-  const translations=subtitles.current.translation, original=subtitles.current.source;
-  const previous=useMemo(()=>previousTranslation(subtitles),[subtitles.history,translations?.segmentId,translations?.sessionEpoch]);
+  const translations=readable.current, original=subtitles.current.source;
+  const normalSourceFont=Math.max(12,font-FONT_SIZE_GAP);
+  const normalStageStyle={'--normal-translation-line':`${font*1.5}px`,
+    '--normal-source-line':`${normalSourceFont*1.6}px`} as React.CSSProperties;
+  const translationKey=translations?`${translations.classId}/${translations.sessionEpoch}/${translations.segmentId}`:'empty';
+  const sourceKey=original?`${original.classId}/${original.sessionEpoch}/${original.segmentId}`:'empty';
+  useLayoutEffect(()=>{if(!subtitleFullscreen&&normalTranslation.current)normalTranslation.current.scrollTop=0;},[subtitleFullscreen,translationKey]);
+  useLayoutEffect(()=>{if(!subtitleFullscreen&&normalSource.current)normalSource.current.scrollTop=0;},[subtitleFullscreen,sourceKey]);
+  const visibleHistory=useMemo(()=>subtitles.history.filter(e=>source||e.channel==='translation').slice(-200),[subtitles.history,source]);
   const inputs=audioSources(devices,outputs);
   const defaultOutput=outputs.find(d=>d.isDefault);
   const differentOutput=systemAudio&&defaultOutput&&input!==`system:${defaultOutput.id}`;
@@ -315,31 +330,27 @@ function App(){
     <label><input type="checkbox" checked={source} onChange={e=>setSource(e.target.checked)}/>显示原文</label>
   </section>;
   return <main>
-    <header><div><span className="eyebrow">CLASSROOM INTERPRETER</span><h1>青衿学院课堂同传<span>中英实时字幕</span></h1></div></header>
+    <header><img className="brand-logo" src="/assets/academy-logo.png" alt="青衿学院"/><div><h1>课堂同传<span>中英实时字幕</span></h1></div></header>
     <section className="toolbar" aria-label="课程控制">
-      <label>音频输入<select value={input} disabled={busy||micChecking||status.state==='finishing'} onChange={e=>void changeInput(e.target.value)}><optgroup label="麦克风 / 输入设备">{inputs.filter(d=>d.group==='input').map(d=><option key={d.value} value={d.value}>{d.label}</option>)}</optgroup>{outputs.length>0&&<optgroup label="扬声器 / 耳机">{inputs.filter(d=>d.group==='output').map(d=><option key={d.value} value={d.value}>{d.label}</option>)}</optgroup>}</select></label>
+      <label>音频输入<select value={input} disabled={busy||status.state==='finishing'} onChange={e=>void changeInput(e.target.value)}><optgroup label="麦克风 / 输入设备">{inputs.filter(d=>d.group==='input').map(d=><option key={d.value} value={d.value}>{d.label}</option>)}</optgroup>{outputs.length>0&&<optgroup label="扬声器 / 耳机">{inputs.filter(d=>d.group==='output').map(d=><option key={d.value} value={d.value}>{d.label}</option>)}</optgroup>}</select></label>
       <label>翻译方向<select value={mode} disabled={locked} onChange={e=>setMode(e.target.value)}><option value="auto">自动中英反转</option><option value="zh-en">中文 → English</option><option value="en-zh">English → 中文</option></select></label>
-      <div className="actions">{running?<button className="primary" disabled={busy&&!switching} onClick={()=>void end(true)}>{busy&&!switching?'正在启动…':'Ⅱ 暂停'}</button>:<button className="primary" disabled={busy||micChecking||status.state==='finishing'} onClick={()=>void begin(status.state!=='paused')}>{busy?'正在启动…':status.state==='paused'?'▶ 继续':'▶ 开始课程'}</button>}<button disabled={(busy&&!switching)||!['paused','connecting','running','muted','recovering'].includes(status.state)} onClick={()=>void end(false)}>结束</button></div>
+      <div className="actions">{running?<button className="primary" disabled={busy&&!switching} onClick={()=>void end(true)}>{busy&&!switching?'正在启动…':'暂停'}</button>:<button className="primary" disabled={busy||status.state==='finishing'} onClick={()=>void begin(status.state!=='paused')}>{busy?'正在启动…':status.state==='paused'?'继续':'开始课程'}</button>}<button disabled={(busy&&!switching)||!['paused','connecting','running','muted','recovering'].includes(status.state)} onClick={()=>void end(false)}>结束</button></div>
     </section>
-    {!systemAudio&&!running&&!busy&&status.state!=='finishing'&&<details className="mic-tools" open={micToolsOpen} onToggle={e=>setMicToolsOpen(e.currentTarget.open)}>
-      <summary>麦克风检测{micRaw&&<span> · 原声模式已开启</span>}</summary>
-      {micToolsOpen&&<>
-      <label className="mic-raw"><input type="checkbox" checked={micRaw} disabled={micChecking} onChange={e=>setMicRaw(e.target.checked)}/>麦克风原声模式（关闭回声消除与降噪；适合有权限但无电平时排查）</label>
-      <MicrophoneCheck key={`${input}-${micRaw}`} deviceId={resolveAudioSource(input).kind==='microphone'?(resolveAudioSource(input) as {deviceId:string}).deviceId:''} raw={micRaw} onChecking={setMicChecking} onDevices={()=>void refreshDevices()}/>
-      </>}
-    </details>}
     {differentOutput&&<aside className="capture-help">系统当前默认播放设备：{defaultOutput.label}。如果音频正在从它播放，请在“扬声器 / 耳机”组里选择这个设备。</aside>}
     {switching?<div className="input-source" role="status">正在切换音频输入…</div>:activeInput&&<div className="input-source">{running?'当前输入':'本次输入'}：{activeInput}{inputWarning&&<span> · {inputWarning}</span>}</div>}
     {(!health?.ready||message)&&<aside className="notice" role="alert">{message||(!health?'正在检查本机服务…':!health.credentialsConfigured?'尚未配置 API Key · 编辑本机 .env 后重启服务。':health.credentialSourceMismatch?'当前是火山方舟 Key · 请从豆包语音控制台获取 API Key 并更新 .env。':'协议语义尚未实测 · 请先运行探测脚本并确认配置。')}{health?.credentialSourceMismatch&&<a href="https://console.volcengine.com/speech/new/setting/apikeys?projectName=default" target="_blank" rel="noreferrer">获取豆包语音 Key ↗</a>}<button className="quiet" onClick={()=>void refreshHealth()}>重新检查</button></aside>}
     <div className="statusbar"><span className={`dot ${status.state}`}/><strong>{!switching&&['running','muted'].includes(status.state)&&audioHint?'等待字幕':labels[status.state]||status.state}</strong><span>{!switching&&['running','muted'].includes(status.state)&&audioHint?audioHint:status.detail}</span><span className="timer">{time}</span></div>
-    <section className="stage" ref={stage} aria-label="当前字幕">
+    <section className="stage" ref={stage} aria-label="当前字幕" style={normalStageStyle}>
       <div className="stage-top"><span>{subtitleFullscreen?'实时译文':'当前译文'}</span><span>LIVE · {mode==='auto'?'中文 ⇄ English':mode==='zh-en'?'中文 → English':'English → 中文'}</span></div>
-      <div className={`translation ${translations?.text?'':'placeholder'}`} style={{...subtitleStyle,fontSize:font}}>
-        {subtitleFullscreen&&previous&&<div className="previous-translation" style={{fontSize:font-FONT_SIZE_GAP}} aria-label="上一句译文"><span className="translation-caption">上一句译文{previous.unfinished?' · 未定稿':''}</span><div>{previous.text}</div></div>}
-        <div className="current-translation" aria-label="当前译文" aria-live="polite" aria-atomic="true">{subtitleFullscreen&&<span className="translation-caption">当前译文</span>}{translations?.text||'让语言跟上课堂。'}{translations?.text&&!translations.isFinal&&<span className="provisional">翻译中</span>}</div>
+      <div className={`translation ${translations?.text?'':'placeholder'}`} style={{...subtitleStyle,fontSize:translations?.text?font:subtitleFullscreen?24:Math.min(24,font)}}>
+        {subtitleFullscreen?<TranslationLyrics history={subtitles.history} current={translations} font={translations?.text?font:24} color={display.fontColor??undefined}/>
+          :<><div ref={normalTranslation} className="current-translation" aria-label="当前译文" aria-live="polite" aria-atomic="true">{translations?.text||'开始后，译文显示在这里。'}</div>
+            {translations?.text&&!translations.isFinal&&<span className="provisional">{translations.unfinished?'未定稿':'翻译中'}</span>}</>}
       </div>
-      {source&&<div className="original"><span>原文</span><p style={{...subtitleStyle,fontSize:font-FONT_SIZE_GAP}}>{original?.text||'开始课程后，原文将在这里显示。'}</p></div>}
-      <div className="stage-bottom"><div className="volume"><span>音频输入</span><meter min="0" max="1" value={displayLevel(meter)} title={meter>0?`${Math.round(20*Math.log10(meter))} dBFS`:'无输入'}/><span>{meter>0?`${Math.round(20*Math.log10(meter))} dBFS`:'无输入'}</span></div><div className="speech-actions"><span>{wakeStatus}</span><button type="button" className="quiet speech-button" disabled={!speechSupported||(!speaking&&!translations?.text.trim())} aria-label={speaking?'停止播报':'播报当前译文'} aria-pressed={speaking} title={speechSupported?'朗读当前译文；优先本地音色，其他音色可能需要联网；播报声音可能被当前输入再次采集':'当前浏览器不支持语音播报'} onClick={speakTranslation}>{speaking?'■ 停止播报':'🔊 播报译文'}</button><button type="button" className="fullscreen-button" aria-label={subtitleFullscreen?'退出字幕全屏':'字幕全屏'} aria-pressed={subtitleFullscreen} title={subtitleFullscreen?'缩小，退出字幕全屏（Esc）':'全屏显示原文和译文'} onClick={()=>void toggleSubtitleFullscreen()}>{subtitleFullscreen?'⤡ 缩小':'⛶ 字幕全屏'}</button></div></div>
+      {source&&<div className="original"><span>原文</span>{subtitleFullscreen
+        ?<p style={{...subtitleStyle,fontSize:original?.text?font-FONT_SIZE_GAP:20}}>{original?.text||'开始后，原文显示在这里。'}</p>
+        :<p ref={normalSource} style={{...subtitleStyle,fontSize:original?.text?normalSourceFont:Math.min(20,normalSourceFont)}}>{original?.text||'开始后，原文显示在这里。'}</p>}</div>}
+      <div className="stage-bottom"><div className="volume"><span>音频输入</span><meter min="0" max="1" value={displayLevel(meter)} title={meter>0?`${Math.round(20*Math.log10(meter))} dBFS`:'无输入'}/><span>{meter>0?`${Math.round(20*Math.log10(meter))} dBFS`:'无输入'}</span></div><div className="speech-actions"><span>{wakeStatus}</span><button type="button" className="quiet speech-button" disabled={!speechSupported||(systemAudio&&running)||(!speaking&&!translations?.text.trim())} aria-label={speaking?'停止播报':'播报当前译文'} aria-pressed={speaking} title={speechSupported?'朗读当前译文；优先本地音色，其他音色可能需要联网；播报声音可能被当前输入再次采集':'当前浏览器不支持语音播报'} onClick={speakTranslation}>{speaking?'■ 停止播报':'🔊 播报译文'}</button><button type="button" className="fullscreen-button" aria-label={subtitleFullscreen?'退出字幕全屏':'字幕全屏'} aria-pressed={subtitleFullscreen} title={subtitleFullscreen?'缩小，退出字幕全屏（Esc）':'全屏显示原文和译文'} onClick={()=>void toggleSubtitleFullscreen()}>{subtitleFullscreen?'⤡ 缩小':'⛶ 字幕全屏'}</button></div></div>
       {subtitleFullscreen&&preferences}
       {fullscreenHint&&<div className="speech-hint" role="status">{fullscreenHint}</div>}
       {(!speechSupported||speechHint)&&<div className="speech-hint" role="status">{speechSupported?speechHint:'当前浏览器不支持语音播报。'}</div>}
@@ -348,7 +359,7 @@ function App(){
     <div className={`record-save-status ${record?.saveState==='error'||(health&&!health.recordsSupported)?'record-error':''}`} role="status">{health&&!health.recordsSupported?'请重启后台服务以启用自动保存；当前页面的记录请先导出 TXT。':record?.saveState==='error'?record.detail:record?.name?`${record.name} · 已自动保存到本机`:'课程记录将自动保存到本机，按日期和序号命名。'}</div>
     <section className="history-section"><div className="section-title"><h2>课堂记录 <span>{subtitles.history.length} 段</span></h2><div>{!follow&&<button onClick={()=>setFollow(true)}>↓ 回到最新</button>}<button className="quiet" disabled={!subtitles.history.length&&!translations?.text&&!original?.text} onClick={download}>导出 TXT</button></div></div>
       <div className="history" ref={history} onScroll={e=>{const el=e.currentTarget;setFollow(el.scrollHeight-el.clientHeight-el.scrollTop<36);}}>
-        {!subtitles.history.length?<div className="empty">定稿后的字幕会按时间留在这里。<small>已保存的记录可在下方“历史课程”查看和导出。</small></div>:subtitles.history.filter(e=>source||e.channel==='translation').map(e=><article data-channel={e.channel} key={`${e.sessionEpoch}/${e.channel}/${e.segmentId}`}><time>{new Date(e.receivedAt).toLocaleTimeString()}</time><div><span className="channel">{e.channel==='translation'?'译文':'原文'}{e.unfinished?' · 未定稿':''}</span><p>{e.text||'（无文本）'}</p></div></article>)}
+        {!subtitles.history.length?<div className="empty">定稿后的字幕会按时间留在这里。<small>已保存的记录可在下方“历史课程”查看和导出。</small></div>:visibleHistory.map(e=><article data-channel={e.channel} key={`${e.sessionEpoch}/${e.channel}/${e.segmentId}`}><time>{new Date(e.receivedAt).toLocaleTimeString()}</time><div><span className="channel">{e.channel==='translation'?'译文':'原文'}{e.unfinished?' · 未定稿':''}</span><p>{e.text||'（无文本）'}</p></div></article>)}
       </div>
     </section>
     <SavedCourses revision={recordsRevision}/>

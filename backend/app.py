@@ -1,6 +1,7 @@
 import asyncio
 import json
 import sqlite3
+import sys
 import time
 import uuid
 import anyio
@@ -13,7 +14,7 @@ from backend.config import ROOT, Settings
 from backend.protocol import RelayError
 from backend.session import Session
 from backend.dialect import DialectSession
-from backend.system_audio import SystemAudio, paced_audio, supported as system_audio_supported
+from backend.system_audio import SystemAudio, WindowsAudioStandby, paced_audio, supported as system_audio_supported
 from backend.records import RecordStore, STATES
 from backend.runtime import records_path
 
@@ -21,12 +22,17 @@ from backend.runtime import records_path
 def create_app(settings=None, session_factory=Session, capture_factory=SystemAudio, dialect_session_factory=DialectSession, record_store=None):
     config = settings or Settings.load()
     records = record_store if record_store is not None else RecordStore(records_path())
+    standby = WindowsAudioStandby() if sys.platform == 'win32' and capture_factory is SystemAudio else None
     @asynccontextmanager
     async def lifespan(app):
         try:
             yield
         finally:
-            await anyio.to_thread.run_sync(records.close)
+            try:
+                if standby:
+                    await standby.close()
+            finally:
+                await anyio.to_thread.run_sync(records.close)
     app = FastAPI(docs_url=None, redoc_url=None, lifespan=lifespan)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=['localhost', '127.0.0.1', 'testserver'])
     active = set()
@@ -88,11 +94,16 @@ def create_app(settings=None, session_factory=Session, capture_factory=SystemAud
     async def audio_outputs():
         if not system_audio_supported():
             return dict(devices=[])
-        async with output_lock:
-            try:
+        try:
+            if standby and not standby.disabled:
+                try:
+                    return dict(devices=await standby.outputs())
+                except (OSError, ValueError, TimeoutError, RelayError):
+                    pass  # Keep ordinary device enumeration on incompatible machines.
+            async with output_lock:
                 return dict(devices=await SystemAudio().outputs())
-            except (OSError, ValueError, TimeoutError, RelayError):
-                return JSONResponse(dict(devices=[], message='无法读取扬声器 / 耳机名称，请检查本机音频组件与依赖。'), status_code=503)
+        except (OSError, ValueError, TimeoutError, RelayError):
+            return JSONResponse(dict(devices=[], message='无法读取扬声器 / 耳机名称，请检查本机音频组件与依赖。'), status_code=503)
 
     @app.websocket('/ws/system-audio')
     async def system_audio(ws: WebSocket):
@@ -113,6 +124,11 @@ def create_app(settings=None, session_factory=Session, capture_factory=SystemAud
         try:
             await ws.accept()
             async def stream():
+                nonlocal capture
+                if standby:
+                    prepared = await standby.take(device_id)
+                    if prepared:
+                        capture = prepared
                 await ws.send_json(await capture.open())
                 async for packet, dropped in paced_audio(capture):
                     if dropped:
@@ -146,10 +162,14 @@ def create_app(settings=None, session_factory=Session, capture_factory=SystemAud
                 for task in tasks:
                     task.cancel()
                 await asyncio.gather(*tasks, return_exceptions=True)
-                await capture.close()
-                capturing.discard(ws)
-                with suppress(RuntimeError, WebSocketDisconnect):
-                    await ws.close()
+                try:
+                    await capture.close()
+                finally:
+                    capturing.discard(ws)
+                    if standby:
+                        standby.schedule()
+                    with suppress(RuntimeError, WebSocketDisconnect):
+                        await ws.close()
 
     @app.websocket('/ws/translate')
     async def translate(ws: WebSocket):

@@ -93,13 +93,18 @@ async def stop_process(process):
         except TimeoutError:
             with suppress(ProcessLookupError):
                 process.kill()
-            await process.wait()
+            await asyncio.wait_for(process.wait(), 2)
+    # Drain the pipes before disposing the loop, including cancellation during
+    # startup. Waiting for the process alone doesn't release Proactor transports.
+    with suppress(TimeoutError, OSError):
+        await asyncio.wait_for(process.communicate(), 2)
 
 
 class SystemAudio:
     def __init__(self, device_id=None):
         self.process = None
         self.device_id = device_id
+        self.prepared = False
 
     async def command(self):
         if not supported():
@@ -121,13 +126,21 @@ class SystemAudio:
                        else [sys.executable, '-u', '-m', 'backend.windows_audio'])
         return command
 
-    async def spawn(self, args):
+    async def spawn(self, args, interactive=False):
         command = await self.command()
         # The capture worker has no need for any cloud credentials.
         keep = {
             'PATH', 'HOME', 'TMPDIR', 'TMP', 'TEMP', 'SystemRoot', 'WINDIR',
             'COMSPEC', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'LANG',
         }
+        if sys.platform == 'win32' and getattr(sys, 'frozen', False):
+            # This is a worker of the same onefile executable. Retain the
+            # bootloader's context so it reuses the parent's extracted bundle
+            # instead of unpacking the EXE again for every device query.
+            keep.update({
+                '_PYI_ARCHIVE_FILE', '_PYI_APPLICATION_HOME_DIR',
+                '_PYI_PARENT_PROCESS_LEVEL', '_PYI_SPLASH_IPC',
+            })
         keep_folded = {name.casefold() for name in keep}
 
         environment = {
@@ -138,25 +151,43 @@ class SystemAudio:
         environment['PYTHONIOENCODING'] = 'utf-8'
         options = {'creationflags': getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000)} if sys.platform == 'win32' else {}
         self.process = await asyncio.create_subprocess_exec(*command, *args, cwd=ROOT, env=environment, **options,
-            stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.DEVNULL, limit=16000)
+            stdin=asyncio.subprocess.PIPE if interactive else asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL, limit=65536 if interactive else 16000)
 
-    async def outputs(self):
+    async def outputs(self, standby=False):
         try:
-            await self.spawn(['--list'])
-            data, _ = await asyncio.wait_for(self.process.communicate(), 10)
+            if standby:
+                await self.spawn(['--list-and-wait'], interactive=True)
+                data = await asyncio.wait_for(self.process.stdout.readline(), 30)
+            else:
+                await self.spawn(['--list'])
+                data, _ = await asyncio.wait_for(self.process.communicate(), 30)
+            # Cold antivirus scans/imports can exceed ten seconds on Windows.
             if self.process.returncode or len(data) > 65536:
                 raise ValueError('output device listing failed')
             devices = json.loads(data)
             if not isinstance(devices, list):
                 raise ValueError('invalid devices')
-            return sorted([d for d in devices if isinstance(d, dict) and isinstance(d.get('id'), str)
+            result = sorted([d for d in devices if isinstance(d, dict) and isinstance(d.get('id'), str)
                 and isinstance(d.get('label'), str)], key=lambda d: not d.get('isDefault'))
+            self.prepared = standby
+            return result
         finally:
-            await self.close()
+            if not self.prepared:
+                await self.close()
 
     async def open(self):
-        await self.spawn(['--device', self.device_id] if self.device_id else [])
+        if self.prepared:
+            self.prepared = False
+            try:
+                if self.process.returncode is not None:
+                    raise BrokenPipeError('prepared worker exited')
+                self.process.stdin.write((json.dumps({'device': self.device_id})+'\n').encode('utf-8'))
+                await self.process.stdin.drain()
+            except (BrokenPipeError, ConnectionResetError):
+                await self.close()
+        if self.process is None:
+            await self.spawn(['--device', self.device_id] if self.device_id else [])
         try:
             line = await asyncio.wait_for(self.process.stdout.readline(), 90)
             ready = json.loads(line)
@@ -171,5 +202,96 @@ class SystemAudio:
         return await self.process.stdout.read(2560)
 
     async def close(self):
+        self.prepared = False
         await stop_process(self.process)
         self.process = None
+
+
+class WindowsAudioStandby:
+    """One single-use, non-recording worker; owned by one application lifespan."""
+    def __init__(self, factory=SystemAudio, ttl=60, wait_timeout=.25):
+        self.factory = factory
+        self.ttl = ttl
+        self.wait_timeout = wait_timeout
+        self.worker = None
+        self.pending = None
+        self.expiry = None
+        self.cleanups = set()
+        self.closed = False
+        self.disabled = False
+
+    def track(self, task):
+        self.cleanups.add(task)
+        def finished(value):
+            self.cleanups.discard(value)
+            if not value.cancelled():
+                value.exception()  # Background preparation is optional.
+        task.add_done_callback(finished)
+        return task
+
+    async def outputs(self):
+        if self.closed:
+            raise RuntimeError('audio preparation is closed')
+        if self.pending is None:
+            self.pending = self.track(asyncio.create_task(self.load()))
+        return await asyncio.shield(self.pending)
+
+    async def load(self):
+        worker = self.factory()
+        old, self.worker = self.worker, None
+        if self.expiry:
+            self.expiry.cancel()
+            self.expiry = None
+        try:
+            if old:
+                await old.close()
+            devices = await worker.outputs(standby=True)
+            if self.closed:
+                raise asyncio.CancelledError()
+            self.worker = worker
+            self.expiry = asyncio.get_running_loop().call_later(self.ttl,
+                lambda: self.track(asyncio.create_task(self.expire(worker))))
+            return devices
+        except BaseException:
+            self.disabled = True
+            await worker.close()
+            raise
+        finally:
+            self.pending = None
+
+    async def expire(self, expected):
+        if self.worker is expected:
+            self.worker = None
+            self.expiry = None
+            await expected.close()
+
+    async def take(self, device_id):
+        if self.pending is not None:
+            try:
+                await asyncio.wait_for(asyncio.shield(self.pending), self.wait_timeout)
+            except (OSError, ValueError, TimeoutError, RelayError):
+                pass  # A cold start remains available after failed preparation.
+        worker, self.worker = self.worker, None
+        if self.expiry:
+            self.expiry.cancel()
+            self.expiry = None
+        if worker:
+            worker.device_id = device_id
+        return worker
+
+    def schedule(self):
+        if not self.closed and not self.disabled and self.worker is None and self.pending is None:
+            self.track(asyncio.create_task(self.outputs()))
+
+    async def close(self):
+        self.closed = True
+        if self.expiry:
+            self.expiry.cancel()
+            self.expiry = None
+        if self.pending:
+            self.pending.cancel()
+        if self.cleanups:
+            await asyncio.gather(*tuple(self.cleanups), return_exceptions=True)
+        worker, self.worker = self.worker, None
+        if worker:
+            await worker.close()

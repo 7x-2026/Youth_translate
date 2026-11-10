@@ -88,11 +88,31 @@ def test_system_audio_close_during_permission_prompt_cancels_startup():
         assert capture.closed.wait(1)
 
 
+def test_failed_native_cleanup_does_not_permanently_reserve_the_capture_slot():
+    captures=[]
+    class CleanupFailure(FakeCapture):
+        async def close(self):
+            await super().close()
+            raise OSError('test cleanup failure')
+    def factory(**options):
+        capture=CleanupFailure(**options) if not captures else FakeCapture(**options)
+        captures.append(capture)
+        return capture
+    with TestClient(create_app(Settings(),capture_factory=factory)) as client:
+        headers={'origin':'http://localhost:8765'}
+        with pytest.raises(OSError,match='test cleanup failure'):
+            with client.websocket_connect('/ws/system-audio',headers=headers) as ws:
+                assert ws.receive_json()['type']=='ready'
+        with client.websocket_connect('/ws/system-audio',headers=headers) as ws:
+            assert ws.receive_json()['type']=='ready'
+
+
 class Process:
     def __init__(self, header=b'{"type":"ready","sampleRate":16000,"label":"native"}\n'):
         self.stdout = SimpleNamespace(readline=AsyncMock(return_value=header), read=AsyncMock(return_value=b'pcm'))
         self.returncode = None
         self.terminated = False
+        self.communicate = AsyncMock(return_value=(b'', b''))
     def terminate(self):
         self.terminated = True
         self.returncode = 0
@@ -113,6 +133,21 @@ async def test_windows_worker_launch_has_no_cloud_credentials_and_closes(monkeyp
     assert await capture.read() == b'pcm'
     await capture.close()
     assert process.terminated and capture.process is None
+    process.communicate.assert_awaited_once()
+
+
+async def test_real_subprocess_pipes_are_drained_before_event_loop_shutdown():
+    import subprocess
+    options={'creationflags':subprocess.CREATE_NO_WINDOW} if sys.platform=='win32' else {}
+    process=await asyncio.create_subprocess_exec(sys.executable,'-u','-c',
+        'import time; print("ready", flush=True); time.sleep(60)',
+        stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.PIPE,**options)
+    try:
+        assert (await asyncio.wait_for(process.stdout.readline(),10)).strip()==b'ready'
+    finally:
+        await system_audio.stop_process(process)
+    assert process.returncode is not None
+    assert process.stdout.at_eof() and process.stderr.at_eof()
 
 
 async def test_invalid_worker_header_does_not_leave_capture_running(monkeypatch):

@@ -39,26 +39,41 @@ def test_source_configuration_keeps_existing_project_env(monkeypatch):
     assert runtime.configuration_path() == runtime.ROOT / '.env'
 
 
-async def test_frozen_worker_uses_executable_entry_and_hides_console_without_credentials(tmp_path, monkeypatch):
+@pytest.mark.parametrize('arguments,interactive', [(['--list'],False),(['--list-and-wait'],True)])
+async def test_frozen_worker_uses_executable_entry_and_hides_console_without_credentials(tmp_path, monkeypatch, arguments, interactive):
     process = SimpleNamespace()
     spawn = AsyncMock(return_value=process)
-    monkeypatch.setattr(system_audio, 'sys', SimpleNamespace(platform='win32', frozen=True, executable=str(tmp_path / 'app.exe')))
+    executable=str(tmp_path / '课堂 程序' / 'app.exe')
+    monkeypatch.setattr(system_audio, 'sys', SimpleNamespace(platform='win32', frozen=True, executable=executable))
     monkeypatch.setattr(system_audio.asyncio, 'create_subprocess_exec', spawn)
     monkeypatch.setenv('VOLC_API_KEY', 'test-key-must-not-leak')
+    monkeypatch.setenv('TENCENT_SECRET_KEY', 'another-key-must-not-leak')
+    monkeypatch.setenv('_PYI_ARCHIVE_FILE', str(tmp_path / 'app.exe'))
+    monkeypatch.setenv('_PYI_APPLICATION_HOME_DIR', str(tmp_path / '_MEI123'))
+    monkeypatch.setenv('_PYI_PARENT_PROCESS_LEVEL', '1')
+    monkeypatch.setenv('PYINSTALLER_RESET_ENVIRONMENT', '1')
     capture = system_audio.SystemAudio()
-    await capture.spawn(['--list'])
-    assert spawn.call_args.args == (str(tmp_path / 'app.exe'), '--audio-worker', '--list')
+    await capture.spawn(arguments, interactive=interactive)
+    assert spawn.call_args.args == (executable, '--audio-worker', *arguments)
+    assert spawn.call_args.kwargs['stdin'] == (system_audio.asyncio.subprocess.PIPE if interactive else system_audio.asyncio.subprocess.DEVNULL)
     assert spawn.call_args.kwargs['creationflags'] == 0x08000000
     assert 'VOLC_API_KEY' not in spawn.call_args.kwargs['env']
+    assert 'TENCENT_SECRET_KEY' not in spawn.call_args.kwargs['env']
+    environment = spawn.call_args.kwargs['env']
+    assert environment['_PYI_ARCHIVE_FILE'] == str(tmp_path / 'app.exe')
+    assert environment['_PYI_APPLICATION_HOME_DIR'] == str(tmp_path / '_MEI123')
+    assert environment['_PYI_PARENT_PROCESS_LEVEL'] == '1'
+    assert 'PYINSTALLER_RESET_ENVIRONMENT' not in environment
     assert spawn.call_args.kwargs['stdout'] is not None
 
 
-def test_worker_dispatch_preserves_arguments_and_does_not_launch_gui(monkeypatch):
+@pytest.mark.parametrize('arguments', [['--device','headphones'],['--list-and-wait']])
+def test_worker_dispatch_preserves_arguments_and_does_not_launch_gui(monkeypatch,arguments):
     received = []
     monkeypatch.setattr(windows_audio, 'main', lambda argv: received.append(argv) or 2)
     monkeypatch.setattr(desktop_launcher, 'launch', lambda: pytest.fail('audio worker must not open UI'))
-    assert desktop_launcher.main(['--audio-worker', '--device', 'headphones']) == 2
-    assert received == [['--device', 'headphones']]
+    assert desktop_launcher.main(['--audio-worker', *arguments]) == 2
+    assert received == [arguments]
 
 
 def test_windows_worker_list_emits_only_json(monkeypatch, capsys):

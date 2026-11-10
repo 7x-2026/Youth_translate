@@ -108,6 +108,7 @@ class DialectSession(Session):
         self.mode, self.wanted = mode, True
         self.queue.clear()
         self.tokens, self.token_time = 64000.0, time.monotonic()
+        self.rate_overruns.clear()
         self.task = asyncio.create_task(self.run())
 
     async def run(self):

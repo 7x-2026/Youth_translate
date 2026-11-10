@@ -38,11 +38,27 @@ def main(argv=None):
         import numpy
         parser = argparse.ArgumentParser()
         parser.add_argument('--list', action='store_true')
+        parser.add_argument('--list-and-wait', action='store_true')
         parser.add_argument('--device')
         args = parser.parse_args(argv)
-        if args.list:
+        if args.list or args.list_and_wait:
             sys.stdout.buffer.write((json.dumps(outputs(soundcard), ensure_ascii=False) + '\n').encode('utf-8'))
             sys.stdout.buffer.flush()
+            if args.list_and_wait:
+                # Loading/enumerating does not open a recorder. The parent sends
+                # exactly one selected device after the user starts capture.
+                line = sys.stdin.buffer.readline(16385)
+                if not line:
+                    return 0
+                if len(line) > 16384 or not line.endswith(b'\n'):
+                    raise ValueError('invalid capture command')
+                command = json.loads(line)
+                if not isinstance(command, dict) or set(command) != {'device'}:
+                    raise ValueError('invalid capture command')
+                device = command['device']
+                if device is not None and (not isinstance(device, str) or not device or len(device) > 2048):
+                    raise ValueError('invalid capture device')
+                capture(soundcard, numpy, sys.stdout.buffer, device)
         else:
             capture(soundcard, numpy, sys.stdout.buffer, args.device)
         return 0

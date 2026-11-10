@@ -14,6 +14,7 @@ class AudioDiagnostics:
         self.last_source=self.last_translation=None
         self.rms_dbfs=None
         self.cloud_muted_ms=None
+        self.rate_dropped_bytes=0
 
     @staticmethod
     def power(packet):
@@ -45,6 +46,7 @@ class AudioDiagnostics:
         age=lambda t:None if t is None else round((now-t)*1000)
         delay=lambda t:None if t is None or self.first_sound is None else round((t-self.first_sound)*1000)
         return dict(receivedAudioMs=self.received/32,sentToCloudAudioMs=self.sent/32,
+            rateDroppedAudioMs=self.rate_dropped_bytes/32,
             lastReceivedAgoMs=age(self.last_received),lastSentToCloudAgoMs=age(self.last_sent),
             lastInputDbfs=self.rms_dbfs,cloudMutedDurationMs=self.cloud_muted_ms,
             firstSourceAfterSoundMs=delay(self.first_source),firstTranslationAfterSoundMs=delay(self.first_translation),

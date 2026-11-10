@@ -33,6 +33,7 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz, a.scripts, a.binaries, a.datas, [],
     name='ClassroomInterpreter',
+    icon=str(root/'frontend/public/assets/academy.ico'),
     debug=False,
     strip=False,
     upx=False,

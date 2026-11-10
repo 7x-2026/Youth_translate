@@ -20,7 +20,7 @@ it('reconnect preserves class and increases from known epoch',()=>{
   const {client,ws}=setup();ws.open();ws.message({type:'status',state:'running',classId:'class',sessionEpoch:3});ws.close();vi.advanceTimersByTime(600);const fresh=Socket.instances[1];fresh.open();expect(JSON.parse(fresh.sent[1]).sessionEpoch).toBe(3);expect(JSON.parse(fresh.sent[1]).classId).toBe('class');client.dispose();
 });
 it('bounded browser buffer recreates connection instead of replay',()=>{
-  const {client,ws,status}=setup();ws.open();ws.bufferedAmount=15000;client.audio(new ArrayBuffer(2560));expect(ws.readyState).toBe(3);expect(status.mock.calls.some(c=>c[0].gap)).toBe(true);client.dispose();
+  const {client,ws,status}=setup();ws.open();ws.message({type:'status',state:'running',classId:'class',sessionEpoch:1});ws.bufferedAmount=15000;client.audio(new ArrayBuffer(2560));expect(ws.readyState).toBe(3);expect(status.mock.calls.some(c=>c[0].gap)).toBe(true);client.dispose();
 });
 it('stop before socket open does not start a billed session',()=>{
   const {client,ws}=setup();client.end(false);ws.open();expect(ws.sent).toHaveLength(0);client.dispose();
@@ -31,12 +31,31 @@ it('fatal errors cancel retries',()=>{
 it('starting a fresh class after a paused socket uses start instead of resume',()=>{
   const {client,ws}=setup();ws.open();ws.message({type:'status',state:'paused',classId:'class',sessionEpoch:1});client.start('auto',true);expect(JSON.parse(ws.sent.at(-1)).type).toBe('start');client.dispose();
 });
-it('reports whether a PCM packet was handed to the local websocket',()=>{
+it('accepts PCM only after running and rejects a congested transport',()=>{
   const {client,ws}=setup(),packet=new ArrayBuffer(2560);
   expect(client.audio(packet)).toBe(false);
-  ws.open();expect(client.audio(packet)).toBe(true);expect(ws.sent.at(-1)).toBe(packet);
+  ws.open();expect(client.audio(packet)).toBe(false);
+  ws.message({type:'status',state:'running',classId:'class',sessionEpoch:1});
+  expect(client.audio(packet)).toBe(true);expect(ws.sent.at(-1)).toBe(packet);
   ws.bufferedAmount=15000;expect(client.audio(packet)).toBe(false);
   client.end(true);expect(client.audio(packet)).toBe(false);client.dispose();
+});
+it('does not replay old queued audio after pause and resume',()=>{
+  const {client,ws}=setup();ws.open();ws.message({type:'status',state:'running',classId:'class',sessionEpoch:1});
+  const old=new ArrayBuffer(2560),next=new ArrayBuffer(2560);
+  client.audio(old);client.audio(old);client.end(true);
+  ws.message({type:'status',state:'paused',classId:'class',sessionEpoch:1});
+  client.start('auto',false);expect(client.audio(next)).toBe(false);
+  ws.message({type:'status',state:'running',classId:'class',sessionEpoch:2});
+  client.audio(next);vi.advanceTimersByTime(160);
+  expect(ws.sent.filter(x=>x instanceof ArrayBuffer)).toEqual([old,next]);client.dispose();
+});
+it('reports transmission only when a queued packet is actually sent',()=>{
+  const {client,ws}=setup();ws.open();ws.message({type:'status',state:'running',classId:'class',sessionEpoch:1});
+  const sent=vi.fn();client.onAudioSent=sent;
+  client.audio(new ArrayBuffer(2560));client.audio(new ArrayBuffer(2560));
+  expect(sent).toHaveBeenCalledOnce();client.end(true);vi.advanceTimersByTime(160);
+  expect(sent).toHaveBeenCalledOnce();client.dispose();
 });
 it('prepares only localhost transport and refuses audio before the device is ready',()=>{
   const {client,status}=setup(false);client.prepare();client.prepare();

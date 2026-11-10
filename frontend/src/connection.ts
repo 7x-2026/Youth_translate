@@ -1,8 +1,10 @@
 import type {RecordStatus} from './records';
+import {PcmSender} from './pcm-sender';
 export type Status = {type:'status';state:string;detail?:string;classId?:string;sessionEpoch?:number;gap?:boolean;record?:RecordStatus};
 export class RelayClient {
   socket?: WebSocket;
   wanted=false;
+  onAudioSent?:(buffer:ArrayBuffer)=>void;
   classId=''; epoch=0;
   private retryTimer?: ReturnType<typeof setTimeout>;
   private heartbeatTimer?: ReturnType<typeof setInterval>;
@@ -19,6 +21,10 @@ export class RelayClient {
   private remotePaused=false;
   private preparing=false;
   private prepareCloud=false;
+  private streaming=false;
+  private audioSender=new PcmSender(buffer=>this.sendAudio(buffer),()=>{
+    this.status({type:'status',state:this.streaming?'running':'recovering',detail:'已跳过积压音频，期间字幕可能存在缺口。',gap:true});
+  });
   constructor(private receive:(message:any)=>void, private status:(status:Status)=>void) {}
   // Open transport while the device initializes. A supporting backend may also
   // warm the cloud socket; neither StartSession nor audio is sent until start().
@@ -32,6 +38,7 @@ export class RelayClient {
   }
   cancelPrepare(){if(!this.wanted)this.dispose();}
   start(mode:string, fresh:boolean) {
+    this.streaming=false;this.audioSender.clear(true);
     this.wanted=true;this.preparing=false;this.mode=mode;
     if(fresh){this.classId=crypto.randomUUID();this.epoch=0;this.attempt=0;}
     clearTimeout(this.retryTimer);
@@ -66,18 +73,22 @@ export class RelayClient {
         if(this.preparing&&!this.wanted)return;
         if(msg.classId && msg.classId!==this.classId)return;
         if(msg.sessionEpoch!==undefined && msg.sessionEpoch<this.epoch)return;
+        if(msg.sessionEpoch!==undefined&&msg.sessionEpoch!==this.epoch)this.audioSender.clear(true);
         this.epoch=Math.max(this.epoch,msg.sessionEpoch??0);
+        this.streaming=['running','muted'].includes(msg.state);
+        if(!this.streaming)this.audioSender.clear(true);
         if(msg.state==='running')this.attempt=0;
         this.remotePaused=msg.state==='paused';
         this.status(msg);
       } else {
-        if(msg.type==='error' && !msg.retryable) {this.wanted=false;clearTimeout(this.retryTimer);}
+        if(msg.type==='error' && !msg.retryable) {this.wanted=false;this.streaming=false;this.audioSender.clear(true);clearTimeout(this.retryTimer);}
         this.receive(msg);
       }
     };
     ws.onclose=()=>{
       if(generation!==this.generation)return;
       clearInterval(this.heartbeatTimer);
+      this.streaming=false;this.audioSender.clear(true);
       if(this.socket===ws)this.socket=undefined;
       if(this.wanted) {
         this.status({type:'status',state:'recovering',detail:'本机连接中断，正在恢复；期间内容可能缺失。',gap:true});
@@ -88,21 +99,34 @@ export class RelayClient {
   }
   send(message:object) {if(this.socket?.readyState===WebSocket.OPEN)this.socket.send(JSON.stringify(message));}
   audio(buffer:ArrayBuffer) {
+    if(!this.wanted||!this.streaming||this.socket?.readyState!==WebSocket.OPEN)return false;
+    if(this.socket.bufferedAmount+buffer.byteLength>16000){
+      this.status({type:'status',state:'recovering',detail:'音频积压超过上限，重建连接并跳过积压内容。',gap:true});
+      this.socket.close(4001,'audio backlog');return false;
+    }
+    return this.audioSender.push(buffer);
+  }
+  discardAudio(){this.audioSender.clear();}
+  drainAudio(){return this.audioSender.drain();}
+  private sendAudio(buffer:ArrayBuffer) {
     const ws=this.socket;
-    if(!this.wanted||ws?.readyState!==WebSocket.OPEN)return false;
+    if(!this.wanted||!this.streaming||ws?.readyState!==WebSocket.OPEN)return false;
     if(ws.bufferedAmount+buffer.byteLength>16000) {
       this.status({type:'status',state:'recovering',detail:'音频积压超过上限，重建连接并跳过积压内容。',gap:true});
       ws.close(4001,'audio backlog');return false;
     }
     ws.send(buffer);
+    this.onAudioSent?.(buffer);
     return true;
   }
   end(pause:boolean) {
+    this.streaming=false;this.audioSender.clear(true);
     this.wanted=false;this.preparing=false;clearTimeout(this.retryTimer);
     if(this.socket?.readyState===WebSocket.OPEN) this.send({type:pause?'pause':'stop'});
     else this.status({type:'status',state:pause?'paused':'stopped',detail:pause?'已暂停':'已结束'});
   }
   dispose() {
+    this.streaming=false;this.audioSender.clear(true);
     this.wanted=false;this.preparing=false;this.generation++;
     clearTimeout(this.retryTimer);clearInterval(this.heartbeatTimer);this.socket?.close();
     this.socket=undefined;
