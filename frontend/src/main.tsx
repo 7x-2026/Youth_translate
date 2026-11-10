@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Capture } from './capture';
+import {MicrophoneCheck} from './microphone-check';
 import { SystemCapture } from './system-capture';
 import { replaceCapture } from './switch-capture';
 import { AudioProgress } from './audio-progress';
@@ -35,6 +36,9 @@ function App(){
   const [outputs,setOutputs]=useState<AudioOutput[]>([]);
   const [input,setInput]=useState('auto');const [mode,setMode]=useState('auto');
   const systemAudio=input==='system'||input.startsWith('system:');
+  const [micChecking,setMicChecking]=useState(false);
+  const [micRaw,setMicRaw]=useState(false);
+  const [micToolsOpen,setMicToolsOpen]=useState(false);
   const [display,setDisplay]=useState<DisplaySettings>(readDisplaySettings);
   const font=display.fontSize??DEFAULT_FONT_SIZE;
   const subtitleStyle={color:display.fontColor??undefined};
@@ -227,7 +231,7 @@ function App(){
     const revision=++captureRevision.current;
     const next=createCapture(value,revision);pendingCapture.current=next;
     try{
-      await replaceCapture({previous,next,source:resolveAudioSource(value),packetMs:DEFAULT_PACKET_MS,roomMode:false,signal:controller.signal,
+      await replaceCapture({previous,next,source:resolveAudioSource(value),packetMs:DEFAULT_PACKET_MS,roomMode:micRaw,signal:controller.signal,
         silence:packet=>{if(active.current&&['running','muted'].includes(stateRef.current))client.current?.audio(packet);},
         ready:actual=>{
           audioProgress.current.reset();setAudioHint('');
@@ -248,7 +252,7 @@ function App(){
     }
   }
   async function begin(fresh:boolean){
-    if(busy)return;setBusy(true);setMessage('');
+    if(busy||micChecking)return;setBusy(true);setMessage('');
     const controller=new AbortController();startupAbort.current=controller;
     receiveStatus({type:'status',state:'connecting',detail:'正在准备音频设备与翻译连接…'});
     try{
@@ -264,7 +268,7 @@ function App(){
       await capture.current?.close();setActiveInput('');setInputWarning('');
       controller.signal.throwIfAborted();
       const c=createCapture(input,++captureRevision.current);pendingCapture.current=c;
-      const actual=await c.open(resolveAudioSource(input),DEFAULT_PACKET_MS);
+      const actual=await c.open(resolveAudioSource(input),DEFAULT_PACKET_MS,micRaw);
       controller.signal.throwIfAborted();
       if(!c.isLive())throw Error('音频输入已中断，请重新选择并启动。');
       capture.current=c;pendingCapture.current=undefined;
@@ -313,10 +317,17 @@ function App(){
   return <main>
     <header><div><span className="eyebrow">CLASSROOM INTERPRETER</span><h1>青衿学院课堂同传<span>中英实时字幕</span></h1></div></header>
     <section className="toolbar" aria-label="课程控制">
-      <label>音频输入<select value={input} disabled={busy||status.state==='finishing'} onChange={e=>void changeInput(e.target.value)}><optgroup label="麦克风 / 输入设备">{inputs.filter(d=>d.group==='input').map(d=><option key={d.value} value={d.value}>{d.label}</option>)}</optgroup>{outputs.length>0&&<optgroup label="扬声器 / 耳机">{inputs.filter(d=>d.group==='output').map(d=><option key={d.value} value={d.value}>{d.label}</option>)}</optgroup>}</select></label>
+      <label>音频输入<select value={input} disabled={busy||micChecking||status.state==='finishing'} onChange={e=>void changeInput(e.target.value)}><optgroup label="麦克风 / 输入设备">{inputs.filter(d=>d.group==='input').map(d=><option key={d.value} value={d.value}>{d.label}</option>)}</optgroup>{outputs.length>0&&<optgroup label="扬声器 / 耳机">{inputs.filter(d=>d.group==='output').map(d=><option key={d.value} value={d.value}>{d.label}</option>)}</optgroup>}</select></label>
       <label>翻译方向<select value={mode} disabled={locked} onChange={e=>setMode(e.target.value)}><option value="auto">自动中英反转</option><option value="zh-en">中文 → English</option><option value="en-zh">English → 中文</option></select></label>
-      <div className="actions">{running?<button className="primary" disabled={busy&&!switching} onClick={()=>void end(true)}>{busy&&!switching?'正在启动…':'Ⅱ 暂停'}</button>:<button className="primary" disabled={busy||status.state==='finishing'} onClick={()=>void begin(status.state!=='paused')}>{busy?'正在启动…':status.state==='paused'?'▶ 继续':'▶ 开始课程'}</button>}<button disabled={(busy&&!switching)||!['paused','connecting','running','muted','recovering'].includes(status.state)} onClick={()=>void end(false)}>结束</button></div>
+      <div className="actions">{running?<button className="primary" disabled={busy&&!switching} onClick={()=>void end(true)}>{busy&&!switching?'正在启动…':'Ⅱ 暂停'}</button>:<button className="primary" disabled={busy||micChecking||status.state==='finishing'} onClick={()=>void begin(status.state!=='paused')}>{busy?'正在启动…':status.state==='paused'?'▶ 继续':'▶ 开始课程'}</button>}<button disabled={(busy&&!switching)||!['paused','connecting','running','muted','recovering'].includes(status.state)} onClick={()=>void end(false)}>结束</button></div>
     </section>
+    {!systemAudio&&!running&&!busy&&status.state!=='finishing'&&<details className="mic-tools" open={micToolsOpen} onToggle={e=>setMicToolsOpen(e.currentTarget.open)}>
+      <summary>麦克风检测{micRaw&&<span> · 原声模式已开启</span>}</summary>
+      {micToolsOpen&&<>
+      <label className="mic-raw"><input type="checkbox" checked={micRaw} disabled={micChecking} onChange={e=>setMicRaw(e.target.checked)}/>麦克风原声模式（关闭回声消除与降噪；适合有权限但无电平时排查）</label>
+      <MicrophoneCheck key={`${input}-${micRaw}`} deviceId={resolveAudioSource(input).kind==='microphone'?(resolveAudioSource(input) as {deviceId:string}).deviceId:''} raw={micRaw} onChecking={setMicChecking} onDevices={()=>void refreshDevices()}/>
+      </>}
+    </details>}
     {differentOutput&&<aside className="capture-help">系统当前默认播放设备：{defaultOutput.label}。如果音频正在从它播放，请在“扬声器 / 耳机”组里选择这个设备。</aside>}
     {switching?<div className="input-source" role="status">正在切换音频输入…</div>:activeInput&&<div className="input-source">{running?'当前输入':'本次输入'}：{activeInput}{inputWarning&&<span> · {inputWarning}</span>}</div>}
     {(!health?.ready||message)&&<aside className="notice" role="alert">{message||(!health?'正在检查本机服务…':!health.credentialsConfigured?'尚未配置 API Key · 编辑本机 .env 后重启服务。':health.credentialSourceMismatch?'当前是火山方舟 Key · 请从豆包语音控制台获取 API Key 并更新 .env。':'协议语义尚未实测 · 请先运行探测脚本并确认配置。')}{health?.credentialSourceMismatch&&<a href="https://console.volcengine.com/speech/new/setting/apikeys?projectName=default" target="_blank" rel="noreferrer">获取豆包语音 Key ↗</a>}<button className="quiet" onClick={()=>void refreshHealth()}>重新检查</button></aside>}

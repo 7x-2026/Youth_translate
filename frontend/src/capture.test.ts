@@ -39,3 +39,29 @@ it('cleans up the microphone if initialization fails',async()=>{
   fail=true;await expect(new Capture(vi.fn(),vi.fn(),vi.fn()).open({kind:'microphone',deviceId:'usb'},80)).rejects.toThrow('worklet failed');
   expect(track.stop).toHaveBeenCalledOnce();expect(context.close).toHaveBeenCalledOnce();
 });
+
+it('permission denial has actionable guidance and releases the audio context',async()=>{
+  getUserMedia.mockRejectedValue(new DOMException('denied','NotAllowedError'));
+  await expect(new Capture(vi.fn(),vi.fn(),vi.fn()).open({kind:'microphone',deviceId:''},80)).rejects.toThrow('地址栏');
+  expect(context.close).toHaveBeenCalledOnce();
+});
+it('does not wait for autoplay resume before asking for microphone permission',async()=>{
+  let requested=false;
+  vi.stubGlobal('AudioContext',class {
+    state='running';destination={};onstatechange=null;
+    audioWorklet={addModule:vi.fn(async()=>{})};
+    resume=vi.fn(()=>requested?Promise.resolve():new Promise<void>(()=>{}));
+    close=vi.fn(async()=>{});createMediaStreamSource=vi.fn(()=>({connect:(n:any)=>n}));
+  });
+  const original=getUserMedia.getMockImplementation();
+  getUserMedia.mockImplementation(async(...args:any[])=>{requested=true;return original(...args);});
+  const c=new Capture(vi.fn(),vi.fn(),vi.fn());
+  await c.open({kind:'microphone',deviceId:'usb'},80);
+  expect(requested).toBe(true);await c.close();
+});
+it('raw input bypasses browser echo cancellation and noise suppression',async()=>{
+  const c=new Capture(vi.fn(),vi.fn(),vi.fn());await c.open({kind:'microphone',deviceId:'usb'},80,true);
+  const constraints=getUserMedia.mock.calls[0][0].audio;
+  expect(constraints.echoCancellation).toBe(false);expect(constraints.noiseSuppression).toBe(false);
+  await c.close();
+});

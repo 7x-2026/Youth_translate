@@ -1,5 +1,13 @@
 import workletUrl from './worklet.ts?worker&url';
 import { isPhoneInput, preferredComputerInput, type AudioSource } from './input';
+export function microphoneError(error:unknown):Error {
+  const name=error instanceof Error?error.name:'';
+  if(name==='NotAllowedError'||name==='SecurityError')return Error('麦克风未获授权。请点击地址栏的网站权限，允许麦克风；同时确认 Windows 已允许桌面应用使用麦克风，再重试。');
+  if(name==='NotFoundError')return Error('未找到麦克风。请连接或启用设备，再刷新输入列表。');
+  if(name==='NotReadableError')return Error('麦克风无法打开，可能被其他应用独占或系统禁止访问。请检查设备和 Windows 麦克风设置。');
+  if(name==='OverconstrainedError')return Error('所选麦克风不可用。请重新选择输入设备后试音。');
+  return error instanceof Error?error:Error('麦克风初始化失败，请检查浏览器与输入设备。');
+}
 export type ActiveInput = {label:string; warning:string};
 export class Capture {
   stream?: MediaStream;
@@ -14,7 +22,13 @@ export class Capture {
     try {
       this.interrupted=false;
       if(source.kind!=='microphone')throw Error('内部音频请使用本机采集组件。');
+      if(!navigator.mediaDevices?.getUserMedia)throw Error('当前页面无法申请麦克风，请使用 Chrome 或 Edge 打开 http://localhost:8765。');
+      // Resume the audio graph while handling the user click, before the permission await.
+      this.context=new AudioContext();
+      // Do not await here: autoplay may defer resume until permission is granted.
+      void this.context.resume().catch(()=>{});
       const input=await this.openMicrophone(source.deviceId,roomMode);
+      await this.context.resume();
       const interrupt=(message:string)=>{
         if(this.interrupted)return;
         this.interrupted=true;this.enable(false);this.problem(message);
@@ -23,8 +37,6 @@ export class Capture {
         track.onended=()=>interrupt('音频设备已断开，请重新选择输入并点击继续。');
         track.onmute=()=>interrupt('音频设备被系统中断，请检查设备并点击继续。');
       });
-      this.context=new AudioContext();
-      await this.context.resume();
       await this.context.audioWorklet.addModule(workletUrl);
       if(this.interrupted||!this.stream?.getAudioTracks().some(t=>t.readyState==='live'))throw Error('音频输入已中断，请重新选择并启动。');
       this.node=new AudioWorkletNode(this.context,'classroom-capture',{processorOptions:{packetMs},outputChannelCount:[1]});
@@ -41,7 +53,7 @@ export class Capture {
       return input;
     } catch(error) {
       await this.close();
-      throw error;
+      throw microphoneError(error);
     }
   }
   isLive(){return !!this.stream?.getAudioTracks().some(t=>t.readyState==='live');}

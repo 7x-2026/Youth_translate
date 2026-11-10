@@ -133,9 +133,116 @@ def smoke_test():
             raise RuntimeError('Packaged server did not stop')
 
 
+
+PALETTE = dict(bg='#f4f7f2', card='#ffffff', line='#dce5dc', text='#213a31', muted='#63766b', accent='#2c6851')
+
+
+def prepare_window(root, width, height):
+    root.configure(bg=PALETTE['bg'])
+    root.resizable(False, False)
+    x=max(0, (root.winfo_screenwidth()-width)//2)
+    y=max(0, (root.winfo_screenheight()-height)//2)
+    root.geometry(f'{width}x{height}+{x}+{y}')
+
+
+def brand_header(parent, subtitle):
+    import tkinter as tk
+    p=PALETTE
+    frame=tk.Frame(parent, bg=p['bg'])
+    frame.pack(fill='x', padx=30, pady=(26,18))
+    tk.Label(frame, text='青 衿  /  CLASSROOM', fg=p['accent'], bg=p['bg'], font=('Microsoft YaHei UI',9)).pack(anchor='w')
+    tk.Label(frame, text='让语言跟上课堂。', fg=p['text'], bg=p['bg'], font=('Microsoft YaHei UI',23,'bold')).pack(anchor='w', pady=(10,6))
+    tk.Label(frame, text=subtitle, fg=p['muted'], bg=p['bg'], font=('Microsoft YaHei UI',10)).pack(anchor='w')
+
+
+def ui_button(parent, text, command, primary=False):
+    import tkinter as tk
+    p=PALETTE
+    color=p['accent'] if primary else p['card']
+    hover='#3f7d63' if primary else '#edf3ec'
+    # Keep a real keyboard-accessible Button; the Canvas supplies rounded edges.
+    shell=tk.Canvas(parent, bg=parent.cget('bg'), highlightthickness=0, bd=0, cursor='hand2')
+    button=tk.Button(shell, text=text, command=command, font=('Microsoft YaHei UI',11,'bold' if primary else 'normal'),
+        bg=color, fg=p['bg'] if primary else p['text'], activebackground=hover,
+        activeforeground=p['bg'] if primary else p['text'], relief='flat', bd=0,
+        cursor='hand2', padx=8, pady=12, highlightthickness=0, takefocus=True)
+    shell.configure(height=button.winfo_reqheight()+4)
+    item=shell.create_window(0,0,window=button)
+    state={'hover':False,'focus':False}
+    def draw(_event=None):
+        w,h=shell.winfo_width(),shell.winfo_height()
+        r=min(14,h/2-1,w/2-1)
+        fill=hover if state['hover'] else color
+        shell.delete('surface')
+        shell.create_polygon(1+r,1,w-1-r,1,w-1,1,w-1,1+r,w-1,h-1-r,w-1,h-1,w-1-r,h-1,1+r,h-1,1,h-1,1,h-1-r,1,1+r,1,1,
+            smooth=True,splinesteps=24,fill=fill,outline=p['accent'] if state['focus'] else color if primary else p['line'],width=2 if state['focus'] else 1,tags='surface')
+        shell.tag_lower('surface')
+        shell.coords(item,w/2,h/2)
+        shell.itemconfigure(item,width=max(1,w-2*r-4),height=max(1,h-4))
+        button.configure(bg=fill)
+    def hovered(value):
+        state['hover']=value;draw()
+    def focused(value):
+        state['focus']=value;draw()
+    for widget in (shell,button):
+        widget.bind('<Enter>',lambda _e:hovered(True))
+        widget.bind('<Leave>',lambda _e:hovered(False))
+    button.bind('<FocusIn>',lambda _e:focused(True))
+    button.bind('<FocusOut>',lambda _e:focused(False))
+    def enter(_event):
+        button.invoke();return 'break'
+    button.bind('<Return>',enter)
+    shell.bind('<ButtonRelease-1>',lambda _e:button.invoke())
+    shell.bind('<Configure>',draw)
+    return shell
+
+
+def request_api_key(root):
+    import tkinter as tk
+    p=PALETTE
+    dialog=tk.Toplevel(root)
+    dialog.title('青衿学院课堂同传 · 首次设置')
+    prepare_window(dialog, 440, 540)
+    brand_header(dialog, '首次使用  /  连接你的豆包语音服务')
+    body=tk.Frame(dialog, bg=p['bg']);body.pack(fill='both', expand=True, padx=30)
+    tk.Label(body, text='豆包语音 API Key', fg=p['text'], bg=p['bg'],font=('Microsoft YaHei UI',11,'bold')).pack(anchor='w', pady=(0,9))
+    entry=tk.Entry(body, show='●', bg=p['card'], fg=p['text'], insertbackground=p['accent'], relief='flat', font=('Microsoft YaHei UI',12), highlightthickness=1, highlightbackground=p['line'], highlightcolor=p['accent'])
+    entry.pack(fill='x', ipady=10)
+    tk.Label(body,text='请使用豆包语音新版控制台的 Key，非火山方舟 ark- Key。\n配置仅保存在本机；翻译需要联网，麦克风授权在浏览器中完成。',justify='left',wraplength=360,fg=p['muted'],bg=p['bg'],font=('Microsoft YaHei UI',9)).pack(anchor='w',pady=(12,6))
+    error=tk.StringVar()
+    tk.Label(body,textvariable=error,fg='#9b4d1d',bg=p['bg'],font=('Microsoft YaHei UI',9),wraplength=360,justify='left').pack(anchor='w')
+    result=[None]
+    def submit():
+        value=entry.get().strip()
+        if not value or value.startswith('ark-') or any(c in value for c in '\r\n\0'):
+            error.set('请输入有效的豆包语音 Key，不能使用 ark- Key。');return
+        result[0]=value;dialog.destroy()
+    ui_button(body,'保存并进入课堂  →',submit,True).pack(fill='x',pady=(12,0))
+    dialog.bind('<Return>',lambda _event:submit())
+    dialog.protocol('WM_DELETE_WINDOW',dialog.destroy)
+    dialog.grab_set();entry.focus_set();root.wait_window(dialog)
+    return result[0]
+
+
+def build_launcher_ui(root, status, open_classroom, close):
+    import tkinter as tk
+    p=PALETTE
+    prepare_window(root, 420, 600)
+    brand_header(root, '青衿学院课堂同传  /  中文 ⇄ English')
+    card=tk.Frame(root,bg=p['card'],highlightbackground=p['line'],highlightthickness=1)
+    card.pack(fill='x',padx=30,pady=(0,16))
+    tk.Label(card,text='●  本机课堂服务',fg=p['accent'],bg=p['card'],font=('Microsoft YaHei UI',10,'bold')).pack(anchor='w',padx=18,pady=(16,7))
+    tk.Label(card,textvariable=status,fg=p['text'],bg=p['card'],font=('Microsoft YaHei UI',10),wraplength=315,justify='left',height=3,anchor='nw').pack(fill='x',padx=18,pady=(0,12))
+    body=tk.Frame(root,bg=p['bg']);body.pack(fill='x',padx=30)
+    ui_button(body,'打开课堂  →',open_classroom,True).pack(fill='x')
+    tk.Label(body,text='首次使用麦克风\n进入课堂后点击“授权并试音”。\n在浏览器中选择允许，确认电平后再开始课程。',fg=p['muted'],bg=p['bg'],font=('Microsoft YaHei UI',9),justify='left',wraplength=350).pack(anchor='w',pady=(16,18))
+    ui_button(body,'退出程序',close).pack(fill='x')
+    tk.Label(root,text='本机保存课程文字  ·  不保存录音  ·  翻译依赖网络',fg=p['muted'],bg=p['bg'],font=('Microsoft YaHei UI',8)).pack(side='bottom',pady=14)
+
+
 def launch():
     import tkinter as tk
-    from tkinter import messagebox, simpledialog, ttk
+    from tkinter import messagebox
     from backend.config import Settings
     from backend.runtime import configuration_path
 
@@ -146,10 +253,7 @@ def launch():
         settings = Settings.load()
         if not settings.api_key or settings.api_key.startswith('ark-') or settings.response_mode == 'unverified':
             while True:
-                key = simpledialog.askstring(
-                    '首次设置', '请输入豆包语音新版控制台的 API Key：\n设置会保存在这台电脑，翻译需要联网。',
-                    show='*', parent=root,
-                )
+                key = request_api_key(root)
                 if key is None:
                     root.destroy()
                     return 0
@@ -170,12 +274,7 @@ def launch():
         root.destroy()
         return 1
 
-    root.geometry('430x190')
-    root.resizable(False, False)
-    panel = ttk.Frame(root, padding=20)
-    panel.pack(fill='both', expand=True)
-    status = tk.StringVar(value='正在启动本机服务…')
-    ttk.Label(panel, textvariable=status, wraplength=385).pack(anchor='w', pady=(0, 12))
+    status = tk.StringVar(value='正在启动本机服务，请稍候…')
     url = f'http://localhost:{settings.port}'
     opened = False
     stopping = False
@@ -207,8 +306,7 @@ def launch():
             webbrowser.open(url)
         root.after(150, poll)
 
-    ttk.Button(panel, text='打开课堂界面', command=lambda: webbrowser.open(url)).pack(fill='x', pady=4)
-    ttk.Button(panel, text='退出程序', command=close).pack(fill='x', pady=4)
+    build_launcher_ui(root, status, lambda: webbrowser.open(url), close)
     root.protocol('WM_DELETE_WINDOW', close)
     thread.start()
     root.deiconify()
