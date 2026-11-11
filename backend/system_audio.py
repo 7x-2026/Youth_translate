@@ -110,6 +110,12 @@ class SystemAudio:
         if not supported():
             raise RelayError('system_audio_unsupported', '电脑内部音频需要 Windows 或 macOS 14.2 及以上版本。')
         if sys.platform == 'darwin':
+            if getattr(sys, 'frozen', False):
+                from backend.runtime import bundled_audio_binary
+                binary = bundled_audio_binary()
+                if not binary.is_file():
+                    raise RelayError('system_audio_missing', '应用的内部音频组件缺失，请重新安装完整的课堂同传应用。')
+                return [str(binary)]
             from scripts.build_system_audio import BINARY
             source = ROOT / 'native/SystemAudio.swift'
             if not BINARY.exists() or BINARY.stat().st_mtime < source.stat().st_mtime:

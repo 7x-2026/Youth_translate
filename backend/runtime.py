@@ -7,6 +7,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def bundled_audio_binary():
+    return Path(sys.executable).parent.parent / 'Helpers/TranslatorAudio.app/Contents/MacOS/TranslatorAudio'
+
+
 def user_data_directory():
     if sys.platform == 'win32':
         base = Path(os.environ['LOCALAPPDATA']) if os.environ.get('LOCALAPPDATA') else Path.home() / 'AppData/Local'

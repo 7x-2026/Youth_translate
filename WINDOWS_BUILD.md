@@ -1,5 +1,9 @@
 # 在 Windows 电脑构建课堂同传 EXE
 
+2026-11-11 源码更新：共享启动器已为 Windows 加入右上角“更换 API Key”按钮。输入新 Key 并保存后，程序自动停止旧服务，再使用新配置重启；刷新原课堂网页即可继续，已保存课程保留。下方主按钮为“开始课堂”和“退出课堂”。现有 `packaging/windows.spec` 直接打包此启动器，无需额外开关。
+
+要获得上述功能，需要在 Windows x64 上使用本次源码重新构建并实机验证。下文 2026-11-10 的既有 EXE 发布记录早于该功能；旧 EXE 不会自动获得更新。本轮已完成 Mac 及共享逻辑测试，尚未重新生成或验证新的 Windows EXE。
+
 2026-11-10 最新构建已完成：当前 `dist/windows/ClassroomInterpreter.exe` 和桌面 `青衿课堂同传-20261110.exe` 包含音频待命优化、普通固定字幕框及已确认的全屏布局。前端 100 项、后端 165 项、自检与 HTTP/设备枚举冒烟检查通过；本文下方“尚未封装”说明保留为此前开发阶段记录，以此条最新状态及 `tests/ACCEPTANCE.md` 为准。其他 Windows 硬件和安全软件组合仍需用最终 EXE 试装验证。
 
 这份说明供另一台 Windows 电脑上的 Codex 接手使用。Mac 已准备启动入口、资源配置、Windows 音频子进程适配和构建脚本；真正的 Windows 可执行文件需在 Windows x64 上生成并验证。PyInstaller 不支持直接在 macOS 上构建 Windows EXE。

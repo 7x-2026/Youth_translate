@@ -7,6 +7,37 @@ from dotenv import dotenv_values
 
 import desktop_launcher
 from backend import runtime, system_audio, windows_audio
+from backend.config import Settings
+
+
+def test_changing_key_preserves_other_configuration_and_updates_running_settings(tmp_path):
+    path = tmp_path / 'config.env'
+    path.write_text("PORT=9876\nVOLC_RESOURCE_ID='custom-resource'\n")
+    original = Settings(api_key='previous-test-key', port=9876, resource_id='custom-resource')
+    updated = desktop_launcher.update_api_key(original, ' replacement-test-key ', path)
+    assert updated.api_key == 'replacement-test-key'
+    assert updated.response_mode == 'delta'
+    assert updated.port == original.port and updated.resource_id == original.resource_id
+    assert original.api_key == 'previous-test-key'
+    assert dotenv_values(path) == dict(PORT='9876', VOLC_RESOURCE_ID='custom-resource',
+        VOLC_API_KEY='replacement-test-key', VOLC_SUBTITLE_RESPONSE_MODE='delta')
+
+
+def test_failed_key_save_keeps_previous_configuration_intact(tmp_path, monkeypatch):
+    import dotenv
+
+    path = tmp_path / 'config.env'
+    desktop_launcher.save_configuration('previous-test-key', path)
+    previous = path.read_bytes()
+    original_set = dotenv.set_key
+    def fail_second_field(filename, field, value, **options):
+        if field == 'VOLC_SUBTITLE_RESPONSE_MODE':
+            raise OSError('test disk write failure')
+        return original_set(filename, field, value, **options)
+    monkeypatch.setattr(dotenv, 'set_key', fail_second_field)
+    with pytest.raises(OSError):
+        desktop_launcher.save_configuration('replacement-test-key', path)
+    assert path.read_bytes() == previous
 
 
 def test_frozen_configuration_is_outside_bundle_and_survives_move(tmp_path, monkeypatch):
@@ -37,6 +68,47 @@ def test_invalid_configuration_cannot_replace_saved_key(tmp_path, key):
 def test_source_configuration_keeps_existing_project_env(monkeypatch):
     monkeypatch.setattr(runtime, 'sys', SimpleNamespace(platform='darwin'))
     assert runtime.configuration_path() == runtime.ROOT / '.env'
+
+
+def test_macos_configuration_and_records_survive_application_replacement(tmp_path, monkeypatch):
+    monkeypatch.setenv('HOME', str(tmp_path))
+    monkeypatch.setattr(runtime, 'sys', SimpleNamespace(platform='darwin', frozen=True))
+    directory = tmp_path / 'Library/Application Support/ClassroomInterpreter'
+    desktop_launcher.save_configuration('test-macos-key', runtime.configuration_path())
+    monkeypatch.setattr(runtime, 'ROOT', tmp_path / 'replacement.app/Contents/Resources')
+    assert runtime.configuration_path() == directory / 'config.env'
+    assert runtime.records_path() == directory / 'records.sqlite3'
+    assert dotenv_values(runtime.configuration_path())['VOLC_API_KEY'] == 'test-macos-key'
+
+
+async def test_frozen_macos_uses_relocated_helper_without_source_or_compiler(tmp_path, monkeypatch):
+    executable = tmp_path / '青衿 Classroom.app/Contents/MacOS/ClassroomInterpreter'
+    fake_sys = SimpleNamespace(platform='darwin', frozen=True, executable=str(executable))
+    monkeypatch.setattr(runtime, 'sys', fake_sys)
+    monkeypatch.setattr(system_audio, 'sys', fake_sys)
+    monkeypatch.setattr(system_audio, 'supported', lambda: True)
+    helper = runtime.bundled_audio_binary()
+    helper.parent.mkdir(parents=True)
+    helper.touch()
+    spawn = AsyncMock(return_value=SimpleNamespace())
+    monkeypatch.setattr(system_audio.asyncio, 'create_subprocess_exec', spawn)
+    monkeypatch.setenv('VOLC_API_KEY', 'must-not-reach-helper')
+    await system_audio.SystemAudio().spawn(['--list'])
+    assert spawn.call_args.args == (str(helper), '--list')
+    assert 'VOLC_API_KEY' not in spawn.call_args.kwargs['env']
+
+
+async def test_missing_packaged_macos_helper_does_not_try_to_build_on_user_machine(tmp_path, monkeypatch):
+    fake_sys = SimpleNamespace(platform='darwin', frozen=True,
+                               executable=str(tmp_path / 'Incomplete.app/Contents/MacOS/app'))
+    monkeypatch.setattr(runtime, 'sys', fake_sys)
+    monkeypatch.setattr(system_audio, 'sys', fake_sys)
+    monkeypatch.setattr(system_audio, 'supported', lambda: True)
+    spawn = AsyncMock()
+    monkeypatch.setattr(system_audio.asyncio, 'create_subprocess_exec', spawn)
+    with pytest.raises(system_audio.RelayError, match='重新安装'):
+        await system_audio.SystemAudio().command()
+    spawn.assert_not_awaited()
 
 
 @pytest.mark.parametrize('arguments,interactive', [(['--list'],False),(['--list-and-wait'],True)])

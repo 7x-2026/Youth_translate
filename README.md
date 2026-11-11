@@ -5,6 +5,8 @@
 - [用户指南：macOS / Windows 从安装到使用](user_readme.md)
 - [AI 与开发者维护说明](AI_readme.md)
 - [Windows 单文件 EXE 构建与接手说明](WINDOWS_BUILD.md)
+- [macOS 应用安装与构建（Apple 芯片 / Intel）](MACOS_BUILD.md)
+- 简明用户指南：[PDF](output/documents/青衿课堂同传用户指南.pdf) / [Word](output/documents/青衿课堂同传用户指南.docx)
 
 课程文字自动保存到本机 SQLite，名称为 `日期-序号`（如 `2026-11-07-001`，每天重新编号）。原文、译文和未定稿内容持续保存，关闭页面后可在“历史课程”查看并导出 TXT。暂停、继续和断线重连保留同一课程名称，不保存音频。首次更新此功能后请重新构建前端并重启后台。
 
