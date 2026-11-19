@@ -13,7 +13,7 @@ from tempfile import TemporaryDirectory
 from scripts.build_system_audio import build as build_audio
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = '0.1.1'
+VERSION = '0.1.2'
 PRIVATE_FILES = {'.env', 'config.env', 'records.sqlite3', 'records.sqlite3-wal', 'records.sqlite3-shm'}
 
 

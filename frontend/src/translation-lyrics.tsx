@@ -13,11 +13,11 @@ export const TranslationLyrics=memo(function TranslationLyrics({history,current,
     if(!box)return;
     if(!line){box.scrollTop=0;lastKey.current=undefined;lastTarget.current=undefined;return;}
     const height=box.clientHeight;
-    const singleLine=parseFloat(getComputedStyle(line).lineHeight)||parseFloat(getComputedStyle(line).fontSize)*1.5;
-    const bottomSpace=Math.min(singleLine*1.5,Math.max(0,height-singleLine));
+    const singleLine=parseFloat(getComputedStyle(line).lineHeight)||parseFloat(getComputedStyle(line).fontSize)*4/3;
+    const bottomSpace=Math.min(singleLine*.08,Math.max(0,height-singleLine));
     box.style.setProperty('--lyrics-bottom-space',`${bottomSpace}px`);
-    // Fill the window from the top, then follow the newest text near the bottom.
-    // Reserve 1.5 text lines instead of an artificial half-window of blank space.
+    // Bottom-align short transcripts too, keeping the newest sentence just above
+    // the source divider while earlier sentences remain visible above it.
     const target=Math.max(0,line.offsetTop+line.offsetHeight+bottomSpace-height);
     const key=line.dataset.entryKey;
     if(key===lastKey.current&&lastTarget.current!==undefined&&Math.abs(target-lastTarget.current)<1)return;
