@@ -48,8 +48,8 @@ app = BUNDLE(
     bundle_identifier='com.classroomtranslate.Interpreter',
     info_plist={
         'CFBundleDisplayName': '青衿课堂同传',
-        'CFBundleShortVersionString': '0.1.2',
-        'CFBundleVersion': '3',
+        'CFBundleShortVersionString': '0.1.3',
+        'CFBundleVersion': '4',
         'LSMinimumSystemVersion': '14.2',
         'NSHighResolutionCapable': True,
         'NSAudioCaptureUsageDescription': '采集所选扬声器或耳机的内部音频以生成翻译字幕，不录屏、不保存音频。',

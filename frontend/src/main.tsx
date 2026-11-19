@@ -11,6 +11,7 @@ import { initialSubtitles, transition, applySubtitle, markUnfinished, exportText
 import {useReadableTranslation} from './use-readable-translation';
 import {TranslationLyrics} from './translation-lyrics';
 import {SavedCourses,type RecordStatus} from './records';
+import {ProfessionalVocabulary} from './terminology';
 import './warm.css';
 type Health={credentialsConfigured:boolean;credentialSourceMismatch:boolean;subtitleSemanticsVerified:boolean;ready:boolean;cloudWarmupSupported?:boolean;recordsSupported?:boolean};
 const labels:Record<string,string>={idle:'准备就绪',connecting:'正在连接',running:'正在翻译',muted:'云端等待语音',recovering:'正在恢复',finishing:'正在收尾',paused:'已暂停',stopped:'已结束',error:'需要处理'};
@@ -330,7 +331,7 @@ function App(){
     <label><input type="checkbox" checked={source} onChange={e=>setSource(e.target.checked)}/>显示原文</label>
   </section>;
   return <main>
-    <header><img className="brand-logo" src="/assets/academy-logo.png" alt="青衿学院"/><div><h1>课堂同传<span>中英实时字幕</span></h1></div></header>
+    <header><img className="brand-logo" src="/assets/academy-logo.png" alt="青衿学院"/><div><h1>课堂同传<span>中英实时字幕</span></h1></div><ProfessionalVocabulary/></header>
     <section className="toolbar" aria-label="课程控制">
       <label>音频输入<select value={input} disabled={busy||status.state==='finishing'} onChange={e=>void changeInput(e.target.value)}><optgroup label="麦克风 / 输入设备">{inputs.filter(d=>d.group==='input').map(d=><option key={d.value} value={d.value}>{d.label}</option>)}</optgroup>{outputs.length>0&&<optgroup label="扬声器 / 耳机">{inputs.filter(d=>d.group==='output').map(d=><option key={d.value} value={d.value}>{d.label}</option>)}</optgroup>}</select></label>
       <label>翻译方向<select value={mode} disabled={locked} onChange={e=>setMode(e.target.value)}><option value="auto">自动中英反转</option><option value="zh-en">中文 → English</option><option value="en-zh">English → 中文</option></select></label>

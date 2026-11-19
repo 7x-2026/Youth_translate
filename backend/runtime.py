@@ -30,3 +30,9 @@ def configuration_path():
 def records_path():
     directory = user_data_directory() if getattr(sys, 'frozen', False) else ROOT / '.local'
     return directory / 'records.sqlite3'
+
+
+def terminology_path(builtin_path=None):
+    if getattr(sys, 'frozen', False):
+        return user_data_directory() / 'terminology.json'
+    return Path(builtin_path) if builtin_path is not None else ROOT / 'terminology/anthroposophy.json'

@@ -54,12 +54,12 @@ def listening_socket(port):
         raise
 
 
-def server_for(settings, record_store=None):
+def server_for(settings, record_store=None, terminology_store=None):
     import uvicorn
     from backend.app import create_app
 
     return uvicorn.Server(uvicorn.Config(
-        create_app(settings, record_store=record_store), host='127.0.0.1', port=settings.port,
+        create_app(settings, record_store=record_store, terminology_store=terminology_store), host='127.0.0.1', port=settings.port,
         ws_max_size=4096, ws_max_queue=4, log_level='warning',
         access_log=False, timeout_graceful_shutdown=7,
     ))
@@ -109,15 +109,19 @@ def self_test():
 def smoke_test():
     """Exercise the packaged HTTP server; never access microphones or the cloud."""
     import re
-    from urllib.request import ProxyHandler, build_opener
+    from urllib.request import ProxyHandler, Request, build_opener
+    from io import BytesIO
+    from openpyxl import Workbook
     from backend.config import Settings
     from backend.records import RecordStore
+    from backend.terminology import TerminologyStore
 
     temporary = TemporaryDirectory(prefix='classroom-smoke-test-')
     records = RecordStore(Path(temporary.name) / 'records.sqlite3')
     listener = listening_socket(0)
     port = listener.getsockname()[1]
-    server = server_for(Settings(port=port), record_store=records)
+    terms = TerminologyStore(user_path=Path(temporary.name) / 'terminology.json')
+    server = server_for(Settings(port=port), record_store=records, terminology_store=terms)
     thread = threading.Thread(target=server.run, kwargs={'sockets': [listener]}, daemon=True)
     thread.start()
     try:
@@ -145,6 +149,31 @@ def smoke_test():
                 if not response.read():
                     raise RuntimeError('Empty frontend resource')
         result = {'smokeTest': 'ok', 'assets': len(assets), 'cloudSessions': 0}
+        # Exercise the embedded Excel reader and isolated persistence via real HTTP.
+        with opener.open(base + '/api/terminology', timeout=5) as response:
+            if not json.load(response)['entries']:
+                raise RuntimeError('Packaged terminology table is empty')
+        workbook = Workbook()
+        workbook.active.append(['中文词汇', '英文译法'])
+        workbook.active.append(['打包自检专用词汇', 'Packaged vocabulary smoke fixture'])
+        spreadsheet = BytesIO()
+        workbook.save(spreadsheet)
+        workbook.close()
+        preview_request = Request(base + '/api/terminology/import/preview?filename=fixture.xlsx',
+                                  data=spreadsheet.getvalue(), headers={'Origin':base, 'Content-Type':'application/octet-stream'})
+        with opener.open(preview_request, timeout=10) as response:
+            preview = json.load(response)
+        if preview['summary']['added'] != 1:
+            raise RuntimeError('Packaged Excel parsing failed')
+        commit_request = Request(base + '/api/terminology/import',
+                                 data=json.dumps(dict(items=preview['items'], hotWords=preview['hotWords'])).encode(),
+                                 headers={'Origin':base, 'Content-Type':'application/json'})
+        with opener.open(commit_request, timeout=5) as response:
+            if json.load(response)['importSummary']['added'] != 1:
+                raise RuntimeError('Packaged Excel import failed')
+        if terms.table()['zh_en'].get('打包自检专用词汇') != 'Packaged vocabulary smoke fixture':
+            raise RuntimeError('Packaged terminology persistence failed')
+        result['terminologyImport'] = 'ok'
         if sys.platform in ('win32', 'darwin'):
             # Import checks alone miss failures in the frozen worker's startup
             # environment and timeout. Enumerating devices does not record audio.

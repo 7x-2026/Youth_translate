@@ -4,6 +4,12 @@
 
 ## 项目速览
 
+2026-11-19 macOS 0.1.3：术语按钮、搜索、新增与 Excel/CSV/JSON 导入已封装到 Intel 与 Apple 芯片两版 DMG。前端 100 项、Intel 后端 189 项、M 系列启动器 21 项和生产构建通过。打包应用的独立目录自检与 HTTP 检查新增真实 XLSX 解析、预览、确认导入及临时完整词表保存，两版 `terminologyImport: ok`，无云端会话；架构/签名、内置资源、数据排除、DMG 与 SHA256 校验通过。`dist/` 只保留两个 0.1.3 DMG，旧版/ZIP/中间产物已清理，检查记录移至 `.local/release-verification-0.1.3/`。Intel 仅 Rosetta 验证，未 Apple 公证或新增真实长课验证。下方“源码，未封装”为本次封装前的历史记录。
+
+2026-11-19 词表展示修复与 Excel 导入（源码，未封装）：实际 8765 服务为旧后台，`/api/terminology` 返回 404；确认无活动课堂后已正常停止并在原端口启动新版后台，真实页面只读核对显示 163 个方向词条。已去掉用户标出的顶部说明文字。新增 `backend/terminology_import.py` 与导入预览/确认接口，支持 XLSX、CSV、TSV、TXT、JSON；Excel 使用锁定的运行依赖 openpyxl 3.1.5 只读解析，不执行公式。文件上限 2 MiB、1000 行；先预览，再重新校验当前完整词表并一次原子保存，跳过重复、冲突和无效行。后端 189 项、前端 100 项、生产构建、隔离浏览器完整导入流程与实际 8765 页面只读检查通过；真实词表未插入测试数据，未重新封装 DMG。
+
+2026-11-19 专业词汇入口（源码，未封装）：`frontend/src/terminology.tsx` 在页面标题右侧提供新增、查询与搜索，`GET/POST /api/terminology` 负责本机读写。`backend.terminology.TerminologyStore` 原子保存单份完整 JSON；源码态直接写已有 `terminology/anthroposophy.json`，打包态首次保存完整词表到用户目录 `terminology.json`，此后只读这一份，不进行双文件合并。现有术语和冲突保护保留，新增中英文同时加入热词，容量仍按热词+双向合并词表限 1000 条，文件上限 256 KiB。只在显式开始/继续时更新会话快照，不在音频路径或自动重连时读取。后端 181 项、前端 100 项、生产构建及隔离浏览器流程通过；已有 DMG 不含本次功能，真实模型命中率未实测。
+
 2026-11-19 Apple 芯片 macOS 0.1.2：随后已按用户要求生成 `dist/macos-arm64/ClassroomInterpreter-macOS-arm64-0.1.2.dmg`，复用与 Intel 0.1.2 相同的前端和源码。arm64 原生自检、独立目录 HTTP/设备枚举、架构/签名、资源一致性、DMG 完整性及 SHA256 检查均通过；未新增真实采音、翻译或长课验证，未 Apple 公证。两种芯片的最新版安装包现在均为 0.1.2。
 
 2026-11-19 Intel macOS 0.1.2：已重新构建 `dist/macos-x86_64/ClassroomInterpreter-macOS-x86_64-0.1.2.dmg`，包含最新全屏译文底部跟随、紧凑原文区、行间留白/段距缩至原来 2/3，左右字距保持默认。前端 100 项、Intel 环境后端 173 项及生产构建通过；独立目录自检、HTTP/设备枚举、架构/签名、前端资源一致性、DMG 与 SHA256 检查通过。仅 Rosetta 验证，尚未在用户 Intel/macOS 15.4.1 实机验证，不调用翻译云端。Apple 芯片安装包未重建；详情见 `tests/ACCEPTANCE.md`。

@@ -17,11 +17,14 @@ from backend.dialect import DialectSession
 from backend.system_audio import SystemAudio, WindowsAudioStandby, paced_audio, supported as system_audio_supported
 from backend.records import RecordStore, STATES
 from backend.runtime import records_path
+from backend.terminology import TerminologyStore
+from backend.terminology_import import parse_vocabulary, MAX_UPLOAD_BYTES
 
 
-def create_app(settings=None, session_factory=Session, capture_factory=SystemAudio, dialect_session_factory=DialectSession, record_store=None):
+def create_app(settings=None, session_factory=Session, capture_factory=SystemAudio, dialect_session_factory=DialectSession, record_store=None, terminology_store=None):
     config = settings or Settings.load()
     records = record_store if record_store is not None else RecordStore(records_path())
+    terms = terminology_store if terminology_store is not None else TerminologyStore()
     standby = WindowsAudioStandby() if sys.platform == 'win32' and capture_factory is SystemAudio else None
     @asynccontextmanager
     async def lifespan(app):
@@ -54,6 +57,75 @@ def create_app(settings=None, session_factory=Session, capture_factory=SystemAud
             return await anyio.to_thread.run_sync(function, *args)
         except (OSError, sqlite3.Error):
             raise HTTPException(503, '无法读取本地课程记录，请检查磁盘空间及数据目录权限。') from None
+
+    async def terminology_call(function, *args):
+        try:
+            result = await anyio.to_thread.run_sync(function, *args)
+            return JSONResponse(result, headers={'Cache-Control': 'no-store'})
+        except RelayError as error:
+            raise HTTPException(409 if error.code == 'terminology_conflict' else 422, error.message) from None
+        except (OSError, ValueError, TypeError, RecursionError):
+            raise HTTPException(503, '无法读取或保存本机词表，请检查词表格式、磁盘空间及目录权限；已有词表不会被覆盖。') from None
+
+    @app.get('/api/terminology')
+    async def list_terminology(request: Request):
+        check_record_request(request)
+        return await terminology_call(terms.snapshot)
+
+    @app.post('/api/terminology')
+    async def add_terminology(request: Request):
+        check_record_request(request)
+        if request.headers.get('origin') not in config.origins:
+            raise HTTPException(403, '仅允许从本机课堂页面新增专业词汇。')
+        if request.headers.get('content-type', '').split(';')[0].strip().lower() != 'application/json':
+            raise HTTPException(415, '请使用 JSON 提交词汇。')
+        body = bytearray()
+        async for chunk in request.stream():
+            body.extend(chunk)
+            if len(body) > 4096:
+                raise HTTPException(413, '词条内容过长。')
+        try:
+            data = json.loads(body)
+            if not isinstance(data, dict) or set(data) != {'zh', 'en', 'direction'}:
+                raise ValueError('schema')
+            if not all(isinstance(data[key], str) for key in data):
+                raise ValueError('type')
+        except (ValueError, TypeError, RecursionError):
+            raise HTTPException(422, '请填写中文词汇、英文译法和翻译方向。') from None
+        return await terminology_call(terms.add, data['zh'].strip(), data['en'].strip(), data['direction'])
+
+    async def import_body(request, content_type):
+        check_record_request(request)
+        if request.headers.get('origin') not in config.origins:
+            raise HTTPException(403, '仅允许从本机课堂页面导入词汇。')
+        if request.headers.get('content-type', '').split(';')[0].strip().lower() != content_type:
+            raise HTTPException(415, '无效文件类型。')
+        body = bytearray()
+        async for chunk in request.stream():
+            body.extend(chunk)
+            if len(body)>MAX_UPLOAD_BYTES:
+                raise HTTPException(413, '词表文件最大 2 MiB。')
+        return bytes(body)
+
+    @app.post('/api/terminology/import/preview')
+    async def preview_terminology(request: Request, filename: str = Query(..., max_length=255)):
+        body = await import_body(request, 'application/octet-stream')
+        try:
+            parsed = await anyio.to_thread.run_sync(parse_vocabulary, body, filename)
+        except ValueError as error:
+            raise HTTPException(422, str(error)) from None
+        return await terminology_call(terms.preview_import, parsed['items'], parsed['hotWords'])
+
+    @app.post('/api/terminology/import')
+    async def import_terminology(request: Request):
+        body = await import_body(request, 'application/json')
+        try:
+            data = json.loads(body)
+            if not isinstance(data, dict) or set(data) != {'items','hotWords'}:
+                raise ValueError('schema')
+        except (ValueError, TypeError, RecursionError):
+            raise HTTPException(422, '导入内容无效，请重新选择文件。') from None
+        return await terminology_call(terms.import_terms, data['items'], data['hotWords'])
 
     @app.get('/api/records')
     async def list_records(request: Request, limit: int = Query(50, ge=1, le=100), offset: int = Query(0, ge=0)):
